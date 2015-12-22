@@ -14,7 +14,8 @@ import retrofit.client.Response;
  */
 public class Behaviours {
     private static Behaviours ourInstance = new Behaviours();
-    String API = "https://api.github.com";                         //BASE URL
+    // String API = "https://api.github.com";                         //BASE URL
+     String API = "/path/user";                         //BASE URL
 
 
     public static Behaviours getInstance() {

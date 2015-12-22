@@ -2,19 +2,23 @@ package android.com.behaviours_sdk;
 
 import android.com.behaviours_sdk.API.gitapi;
 import android.com.behaviours_sdk.Model.BehaviourJSON;
+import android.com.behaviours_sdk.Model.MockClient;
 import android.os.Bundle;
-import android.support.v7.app.ActionBarActivity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.google.inject.Inject;
+
 import retrofit.Callback;
 import retrofit.RestAdapter;
 import retrofit.RetrofitError;
 import retrofit.client.Response;
+import roboguice.activity.RoboActivity;
 
+;
 /*Data hosted with ♥ by Pastebin.com-Download Raw-See Original
         package com.makeinfo.flowerpi;
 */
@@ -25,13 +29,19 @@ import retrofit.client.Response;
     Similarly, if you want to use the annotations inside an Android service,
      its class must extend RoboService instead of Service.
  */
-public class MainActivity extends ActionBarActivity {
+
+public class MainActivity extends RoboActivity {
+
+    @Inject
+    Behaviours b;
 
     Button click;
     TextView tv;
     EditText edit_user;
     ProgressBar pbar;
-    String API = "https://api.github.com";                         //BASE URL
+    String API = "https://api.github.com/path/user";                         //BASE URL
+
+
 
     /*
         Normally, you would use the setContentView method and pass a layout resource to it in order to
@@ -57,16 +67,18 @@ public class MainActivity extends ActionBarActivity {
             @InjectView(R.id.okay)
             private Button okay;
          */
-         /*
-            with mocking
+
+         //   with mocking
             RestAdapter.Builder builder = new RestAdapter.Builder();
             builder.setClient(new MockClient());
-          */
+
         //Retrofit section start from here...
             RestAdapter restAdapter = new RestAdapter.Builder()
-                    .setEndpoint(API).build();                                        //create an adapter for retrofit with base url
+                    .setEndpoint(API).build();
+                              //create an adapter for retrofit with base url
 
-            gitapi git = restAdapter.create(gitapi.class);                            //creating a service for adapter with our GET class
+            gitapi git = restAdapter.create(gitapi.class);
+                //creating a service for adapter with our GET class
 
             //Now ,we need to call for response
             //Retrofit using gson for JSON-POJO conversion
