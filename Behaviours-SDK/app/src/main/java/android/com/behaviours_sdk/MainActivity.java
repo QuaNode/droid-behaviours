@@ -1,105 +1,123 @@
 package android.com.behaviours_sdk;
 
 import android.com.behaviours_sdk.API.gitapi;
-import android.com.behaviours_sdk.Model.BehaviourJSON;
 import android.com.behaviours_sdk.Model.MockClient;
 import android.os.Bundle;
+import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ProgressBar;
 import android.widget.TextView;
-
-import com.google.inject.Inject;
 
 import retrofit.Callback;
 import retrofit.RestAdapter;
 import retrofit.RetrofitError;
 import retrofit.client.Response;
+import retrofit.mime.TypedByteArray;
 import roboguice.activity.RoboActivity;
+import roboguice.inject.InjectView;
 
-;
-/*Data hosted with ♥ by Pastebin.com-Download Raw-See Original
-        package com.makeinfo.flowerpi;
-*/
 
-/*
-    To be able to use RoboGuice’s annotations in your Android activities,
-    their classes must extend RoboActivity instead of Activity.
-    Similarly, if you want to use the annotations inside an Android service,
-     its class must extend RoboService instead of Service.
- */
-
+//@ContentView(R.layout.activity_main)
 public class MainActivity extends RoboActivity {
 
-    @Inject
-    Behaviours b;
+//    @Inject
+//    Behaviours b;
 
-    Button click;
-    TextView tv;
-    EditText edit_user;
-    ProgressBar pbar;
-    String API = "https://api.github.com/path/user";                         //BASE URL
+    @InjectView(R.id.textView)
+    private TextView textView;
 
 
+    final String API = "https://api.stackexchange.com/";                         //BASE URL
 
-    /*
-        Normally, you would use the setContentView method and pass a layout resource to it in order to
-        set the layout of an Activity. RoboGuice offers an alternative means to do the same thing,
-         the @ContentView annotation.
-
-        @ContentView(R.layout.activity_main)
-        public class MainActivity extends RoboActivity {
-
-        }
-     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+       setContentView(R.layout.activity_main);
+        textView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                getInfo();
+            }
+        });
+      // i inject it in the upper of calss
+      //  setActionBar(tool);
+        //setSupportActionBar(tool);
 
-        /*
-        To initialize the two UI widgets defined in the XML in a RoboActivity, you could write the following:
+    }
 
-            @InjectView(R.id.email)
-            private TextView email;
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        getInfo();
 
-            @InjectView(R.id.okay)
-            private Button okay;
-         */
+        return super.onOptionsItemSelected(item);
+    }
 
-         //   with mocking
-            RestAdapter.Builder builder = new RestAdapter.Builder();
-            builder.setClient(new MockClient());
-
+    private void getInfo(){
         //Retrofit section start from here...
-            RestAdapter restAdapter = new RestAdapter.Builder()
-                    .setEndpoint(API).build();
-                              //create an adapter for retrofit with base url
+//        RestAdapter restAdapter = new RestAdapter.Builder()
+//                .setEndpoint(API).build();
+//        gitapi git = restAdapter.create(gitapi.class);
 
-            gitapi git = restAdapter.create(gitapi.class);
-                //creating a service for adapter with our GET class
+        //   with mocking
+        RestAdapter.Builder builder = new RestAdapter.Builder();
+        builder.setClient(new MockClient());
 
-            //Now ,we need to call for response
-            //Retrofit using gson for JSON-POJO conversion
+        //create an adapter for retrofit with base url
+        RestAdapter restAdapter =
+                builder.setClient(new MockClient())
+                        .setEndpoint(API)
+                        .build();
 
-            git.getFeed(new Callback<BehaviourJSON>() {
-                @Override
-                public void success(BehaviourJSON gitmodel, Response response) {
-                    //we get json object from github server to our POJO or model class
+        gitapi git = restAdapter.create(gitapi.class);
+        //Now ,we need to call for response
+        //Retrofit using gson for JSON-POJO conversion
+        git.getStack(new Callback<Response>() {
+            @Override
+            public void success(Response response, Response ignore) {
 
-                   // tv.setText("Github Name :"+gitmodel.getName()+"\nWebsite :"+gitmodel.getBlog()+"\nCompany Name :"+gitmodel.getCompany());
+                // another one is
+                  String bodyString = new String(((TypedByteArray) response.getBody()).getBytes());
 
-                    //pbar.setVisibility(View.INVISIBLE);                               //disable progressbar
-                }
+                  textView.setText(bodyString.toString());
+//
+//                TypedInput body = response.getBody();
+//                try {
+//                    BufferedReader reader = new BufferedReader(new InputStreamReader(body.in()));
+//                    StringBuilder out = new StringBuilder();
+//                    String newLine = System.getProperty("line.separator");
+//                    String line;
+//                    while ((line = reader.readLine()) != null) {
+//                        out.append(line);
+//                        out.append(newLine);
+//                    }
+//
+//                    Log.d("JSON", out.toString());
+//                    textView.setText(out.toString());
+//                    Log.d("JSON", out.toString());
+//                    // Prints the correct String representation of body.
+//                    System.out.println(out);
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
 
-                @Override
-                public void failure(RetrofitError error) {
-                    tv.setText(error.getMessage());
-                    pbar.setVisibility(View.INVISIBLE);                               //disable progressbar
-                }
-            });
+                // JSON to Map
+                /*
+                java.lang.reflect.Type mapType = new TypeToken<Map<String, Object>>(){}.getType();
+                Gson gson = new Gson();
+                Map<String, Object> categoryicons = gson.fromJson(JSON.toString(), mapType);
+                */
+                /* another method
+                  ObjectMapper mapper = new ObjectMapper();
+                    HashMap<String,Object> result =
+                            new HashMap<String, Object>().readValue(out, HashMap.class);
+                 */
 
+            }
+
+            @Override
+            public void failure(RetrofitError error) {
+                textView.setText("Failed to get it ");
+            }
+        });
     }
 
 
