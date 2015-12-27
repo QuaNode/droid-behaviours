@@ -7,6 +7,11 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import java.util.Map;
+
 import retrofit.Callback;
 import retrofit.RestAdapter;
 import retrofit.RetrofitError;
@@ -24,7 +29,7 @@ public class MainActivity extends RoboActivity {
 
     @InjectView(R.id.textView)
     private TextView textView;
-
+    Map<String, Object> JSONMap ;
 
     final String API = "https://api.stackexchange.com/";                         //BASE URL
 
@@ -57,19 +62,15 @@ public class MainActivity extends RoboActivity {
 //                .setEndpoint(API).build();
 //        gitapi git = restAdapter.create(gitapi.class);
 
-        //   with mocking
         RestAdapter.Builder builder = new RestAdapter.Builder();
         builder.setClient(new MockClient());
-
-        //create an adapter for retrofit with base url
         RestAdapter restAdapter =
                 builder.setClient(new MockClient())
                         .setEndpoint(API)
                         .build();
 
         gitapi git = restAdapter.create(gitapi.class);
-        //Now ,we need to call for response
-        //Retrofit using gson for JSON-POJO conversion
+
         git.getStack(new Callback<Response>() {
             @Override
             public void success(Response response, Response ignore) {
@@ -78,38 +79,10 @@ public class MainActivity extends RoboActivity {
                   String bodyString = new String(((TypedByteArray) response.getBody()).getBytes());
 
                   textView.setText(bodyString.toString());
-//
-//                TypedInput body = response.getBody();
-//                try {
-//                    BufferedReader reader = new BufferedReader(new InputStreamReader(body.in()));
-//                    StringBuilder out = new StringBuilder();
-//                    String newLine = System.getProperty("line.separator");
-//                    String line;
-//                    while ((line = reader.readLine()) != null) {
-//                        out.append(line);
-//                        out.append(newLine);
-//                    }
-//
-//                    Log.d("JSON", out.toString());
-//                    textView.setText(out.toString());
-//                    Log.d("JSON", out.toString());
-//                    // Prints the correct String representation of body.
-//                    System.out.println(out);
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                }
-
                 // JSON to Map
-                /*
                 java.lang.reflect.Type mapType = new TypeToken<Map<String, Object>>(){}.getType();
                 Gson gson = new Gson();
-                Map<String, Object> categoryicons = gson.fromJson(JSON.toString(), mapType);
-                */
-                /* another method
-                  ObjectMapper mapper = new ObjectMapper();
-                    HashMap<String,Object> result =
-                            new HashMap<String, Object>().readValue(out, HashMap.class);
-                 */
+                JSONMap = gson.fromJson(bodyString.toString(), mapType);
 
             }
 

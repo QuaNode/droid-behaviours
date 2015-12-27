@@ -29,11 +29,8 @@ public class Behaviours {
 
     private void initiateBehavoir(){
 
-
-        //   with mocking
         RestAdapter.Builder builder = new RestAdapter.Builder();
         builder.setClient(new MockClient());
-
         //create an adapter for retrofit with base url
         RestAdapter restAdapter =
             builder.setClient(new MockClient()).build();
@@ -43,12 +40,7 @@ public class Behaviours {
         git.getFeed(new Callback<Response>() {
             @Override
             public void success(Response behaviourJSON, Response response) {
-                //we get json object from github server to our POJO or model class
-
                 Log.d("sucess" , "Data recieved " + behaviourJSON);
-               /* tv.setText("Github Name :"+gitmodel.getName()+"\nWebsite :"
-                        + gitmodel.getBlog()+"\nCompany Name :"+gitmodel.getCompany());
-                pbar.setVisibility(View.INVISIBLE);*/                               //disable progressbar
             }
 
             @Override
