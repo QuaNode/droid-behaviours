@@ -24,8 +24,12 @@ public class MockClient implements Client {
 
         String responseString = "";
 
-        if(uri.getPath().equals("/stack")) {
-            responseString = "JSON STRING HERE MIDO";
+        if(uri.getPath().equals("/behaviours")) {
+
+            responseString  = "{'Login' : {'version' : 1, 'name' : 'Login', 'path' : '/login', 'method' : 'POST', 'parameters' : {" +
+                    "'username' : {'key' : 'user', 'type' : 'header'}," +
+                    "'password' : {'key' : 'pass', 'type' : 'header'}" +
+                    "}}}";
         } else {
             responseString = "OTHER JSON RESPONSE STRING";
         }
