@@ -1,3 +1,3 @@
 # droid-behaviours
 
-Behaviours-SDK-Android
+Android client for Behaviours
