@@ -1,3 +1,3 @@
-# Behaviours-SDK-Android
+# droid-behaviours
 
 Behaviours-SDK-Android
