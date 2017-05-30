@@ -1,7 +1,12 @@
-package android.com.behaviours_sdk;
+package com.quanode.golegal.Behaviours;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.support.annotation.Nullable;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -14,11 +19,13 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -36,12 +43,13 @@ interface BehaviourCallback<T> {
  */
 
 @GwtCompatible
- interface Function<F,L> {
+interface Function<F, L> {
     @Nullable
     void apply(@Nullable F var1, @Nullable L var2) throws IOException;
 
-    boolean equals(@Nullable Object var1,@Nullable Object var2);
+    boolean equals(@Nullable Object var1, @Nullable Object var2);
 }
+
 @GwtCompatible
 interface GETURLFunction {
     @Nullable
@@ -49,18 +57,24 @@ interface GETURLFunction {
 
     boolean equals(@Nullable Object var1);
 }
+
 public class Behaviours {
 
-    Map<String, Object> behavioursJSON = new HashMap<String, Object>();
+    Map<String, Object> behavioursJSON = null;
+    Map<String, Object> parameters;
+    Context context;
 
     GETURLFunction getURL = null;
 
-    protected  Behaviours(GETURLFunction getURL){
+
+    protected Behaviours(GETURLFunction getURL) {
         this.getURL = getURL;
     }
 
-    protected  Behaviours(final String baseUrl){
-
+    protected Behaviours(final String baseUrl, Map<String, Object> defaults, Context context) throws IOException {
+        this.context = context;
+        //todo get parameters from shared
+        parameters.putAll(defaults);
         this.getURL = new GETURLFunction() {
             @Nullable
             @Override
@@ -73,7 +87,9 @@ public class Behaviours {
                 return false;
             }
         };
+        initiateBehaviour();
     }
+
 
     private void initiateBehaviour() throws IOException {
 
@@ -81,76 +97,124 @@ public class Behaviours {
             @Override
             public void callback(Object o, Error e) {
 
-                if(e != null){
+                if (e != null) {
                     throw (e);
-                }else {
+                } else {
                     behavioursJSON = (Map<String, Object>) o;
                 }
             }
         });
     }
 
-    private Function<Map<String, Object>, BehaviourCallback<Object>> getBehaviour(String behaviourName) throws Exception {
+    private Function<Map<String, Object>, BehaviourCallback<Object>> getBehaviour(final String behaviourName) throws Exception {
+
+
+        if (behaviourName == null) {
+
+            throw new Exception("Invalid behaviour name");
+        }
+        if (behavioursJSON == null) {
+
+            throw new Exception("Behaviours is not ready yet");
+        }
 
         final Map<String, Object> behaviour = (Map<String, Object>) behavioursJSON.get(behaviourName);
         if (behaviour == null) {
 
             throw new Exception("Invalid behaviour name");
         }
-        return new Function<Map<String,Object>,BehaviourCallback<Object>>() {
+        return new Function<Map<String, Object>, BehaviourCallback<Object>>() {
 
             @Nullable
             @Override
             public void apply(@Nullable Map<String, Object> data, @Nullable BehaviourCallback<Object> callback) throws IOException {
 
-                Map<String,Object> headers = new TreeMap<>();
-                Map<String,Object> body = new TreeMap<>();
+                if (data == null) {
+                    data = new HashMap<String, Object>();
+                }
+                if (behaviour.get("parameters") instanceof HashMap) {
+
+                    ((HashMap<String, Object>) behaviour.get("parameters")).putAll(parameters);
+                } else {
+
+                    behaviour.put("parameters", parameters);
+                }
+
+                Map<String, Object> headers = new TreeMap<>();
+                Map<String, Object> body = new TreeMap<>();
                 String url = (String) behaviour.get("path");
-                for (String key : data.keySet()){
+                for (String key : ((HashMap<String, Object>) behaviour.get("parameters")).keySet()) {
+                    //do the same but not cantain the beaviour name
+                    if (((HashMap<String, Object>) behaviour.get("parameters")).get(key) instanceof HashMap) {
+                        Object unless = ((HashMap) ((HashMap<String, Object>) behaviour.get("parameters")).get(key)).get("unless");
 
-                    switch ((String)((Map<String, Object>)((Map<String, Object>)behaviour.get("parameters")).get(key)).get("type")) {
+                        if (unless instanceof String[]) {
 
-                        case "header":{
-                               headers.put(key, data.get(key));
-                               break;
-                        }
-                        case "body":{
-                            String [] paths = behaviour.get(key).toString().split(".");
-                            Map<String, Object> nestedData = body;
-                            String lastPath = null;
-                            for(String path : paths){
+                            if ((new ArrayList<String>((Collection<? extends String>) unless).contains(behaviourName))) {
 
-                                if(lastPath!= null) {
-
-                                    nestedData = (Map<String, Object>) nestedData.get(lastPath);
-                                }
-                                if (nestedData.get(path) == null) {
-
-                                    nestedData.put(path, new TreeMap<String,Object>());
-                                }
-                                lastPath = path;
+                                continue;
                             }
-                            if (lastPath!= null) nestedData.put(lastPath, data.get(key));
-                            break;
-                        }
-                        case "query":{
-                            if (url.indexOf('?') == -1) {
-
-                                   url += '?';
-                            }
-                            String behaviourKey =  URLEncoder.encode(behaviour.get(key).toString(), "UTF-8");
-                            String dataValue =  URLEncoder.encode(data.get(key).toString(), "UTF-8");
-                            url += '&' + behaviourKey + '=' + dataValue;
-                            break;
-                       }
-                        case "path": {
-
-                            String dataValue =  URLEncoder.encode(data.get(key).toString(), "UTF-8");
-                            url.replace(':' + behaviour.get(key).toString(), dataValue);
-                            break;
                         }
                     }
-                    sendRequest(url,headers,behaviour.get("method").toString(),body,callback);
+                    if (((HashMap<String, Object>) behaviour.get("parameters")).get(key) instanceof HashMap) {
+                        Object forObj = ((HashMap) ((HashMap<String, Object>) behaviour.get("parameters")).get(key)).get("for");
+
+                        if (forObj instanceof String[]) {
+
+                            if (!(new ArrayList<String>((Collection<? extends String>) forObj).contains(behaviourName))) {
+
+                                continue;
+                            }
+                        }
+                    }
+                    //vaildate the null in switch
+                    if ((String) ((Map<String, Object>) ((Map<String, Object>) behaviour.get("parameters")).get(key)).get("type") != null) {
+                        switch ((String) ((Map<String, Object>) ((Map<String, Object>) behaviour.get("parameters")).get(key)).get("type")) {
+
+                            case "header": {
+                                headers.put(key, data.get(key));
+                                break;
+                            }
+                            case "body": {
+                                String[] paths = behaviour.get(key).toString().split(".");
+                                Map<String, Object> nestedData = body;
+                                String lastPath = null;
+                                for (String path : paths) {
+
+                                    if (lastPath != null) {
+
+                                        nestedData = (Map<String, Object>) nestedData.get(lastPath);
+                                    }
+                                    if (nestedData.get(path) == null) {
+
+                                        nestedData.put(path, new TreeMap<String, Object>());
+                                    }
+                                    lastPath = path;
+                                }
+                                if (lastPath != null) nestedData.put(lastPath, data.get(key));
+                                break;
+                            }
+                            case "query": {
+                                if (url.indexOf('?') == -1) {
+
+                                    url += '?';
+                                }
+                                String behaviourKey = URLEncoder.encode(behaviour.get(key).toString(), "UTF-8");
+                                String dataValue = URLEncoder.encode(data.get(key).toString(), "UTF-8");
+                                url += '&' + behaviourKey + '=' + dataValue;
+                                break;
+                            }
+                            case "path": {
+
+                                String dataValue = URLEncoder.encode(data.get(key).toString(), "UTF-8");
+                                url.replace(':' + behaviour.get(key).toString(), dataValue);
+                                break;
+                            }
+                        }
+
+                        sendRequest(url, headers, behaviour.get("method").toString(), body, callback);
+                    }
+
 
                 }
             }
@@ -162,13 +226,13 @@ public class Behaviours {
         };
     }
 
-    protected void sendRequest(String path,@Nullable Map<String, Object> headers,
-                               String method,@Nullable Map<String, Object> body, BehaviourCallback<Object> callback) throws IOException {
+    protected void sendRequest(String path, @Nullable Map<String, Object> headers,
+                               String method, @Nullable Map<String, Object> body, BehaviourCallback<Object> callback) throws IOException {
 
         URL url = this.getURL.apply(path);
         HttpURLConnection httpCon = (HttpURLConnection) url.openConnection();
         httpCon.setRequestMethod(method);
-        if(body!= null){
+        if (body != null) {
             httpCon.setDoOutput(true);
             OutputStreamWriter out = new OutputStreamWriter(
                     httpCon.getOutputStream());
@@ -177,17 +241,18 @@ public class Behaviours {
             out.write(json.toString());
             out.close();
         }
-        if(headers!= null){
-            for(String key : headers.keySet()){
-                httpCon.setRequestProperty(key,  headers.get(key).toString());
+        if (headers != null) {
+            for (String key : headers.keySet()) {
+                httpCon.setRequestProperty(key, headers.get(key).toString());
             }
         }
 
         ConnectionEstablishment connection = new ConnectionEstablishment();
-        connection.execute(httpCon , callback);
+        connection.execute(httpCon, callback);
 
 
     }
+
     private class ConnectionEstablishment extends AsyncTask<Object, Void, String> {
         @Override
         protected String doInBackground(Object... params) {
@@ -200,7 +265,7 @@ public class Behaviours {
                 BufferedReader br = new BufferedReader(new InputStreamReader(in));
                 String read;
 
-                while((read=br.readLine()) != null) {
+                while ((read = br.readLine()) != null) {
                     sb.append(read);
                 }
 
@@ -208,7 +273,7 @@ public class Behaviours {
 
                 callback.apply(sb.toString(), null);
 
-            } catch (Exception ex){
+            } catch (Exception ex) {
                 try {
                     callback.apply(null, ex);
                 } catch (UnsupportedEncodingException e) {
@@ -231,6 +296,7 @@ public class Behaviours {
         }
         return retMap;
     }
+
     private Map<String, Object> toMap(JSONObject object) throws JSONException {
         Map<String, Object> map = new HashMap<String, Object>();
 
@@ -248,6 +314,7 @@ public class Behaviours {
         }
         return map;
     }
+
     private List<Object> toList(JSONArray array) throws JSONException {
         List<Object> list = new ArrayList<Object>();
         for (int i = 0; i < array.length(); i++) {
@@ -263,6 +330,36 @@ public class Behaviours {
     }
 
 
+    private Object getValueForParameter(Map<String, Object> parameters, Map<String, Object> data, String key) {
+
+        if (data.get(key) != null)
+            return data.get(key);
+
+        return parameters.get("value");
+    }
+
+    void putDataIntoSharedPreference(Map<String, Object> data) {
+        SharedPreferences prefs = context.getSharedPreferences(
+                "Behaviours_Pref", Context.MODE_PRIVATE);
+        prefs.edit().putString("behaviours", new Gson().toJson(data)).apply();
+    }
+
+    HashMap<String, Object> getDataFromSharedPreference() {
+        SharedPreferences prefs = context.getSharedPreferences(
+                "Behaviours_Pref", Context.MODE_PRIVATE);
+        String strData = prefs.getString("behaviours", null);
+        HashMap<String, Object> data = null;
+        if (strData != null) {
+            Gson gson = new Gson();
+
+            Type hashMapType =
+                    new TypeToken<HashMap<String, Object>>() {
+                    }.getType();
+
+            data = gson.fromJson(strData, hashMapType);
+        }
+        return data;
+    }
 
 
 }
