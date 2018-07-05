@@ -1,12 +1,12 @@
 package com.quanode.behaviors;
 
 
-public class BehaviourError extends Error {
+public class BehaviorError extends Error {
 
     int code;
     String message;
 
-    public BehaviourError(String message) {
+    public BehaviorError(String message) {
         super(message);
         this.message = message;
     }

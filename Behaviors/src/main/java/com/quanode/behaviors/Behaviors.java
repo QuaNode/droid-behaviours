@@ -33,19 +33,19 @@ import java.util.List;
 import java.util.Map;
 
 
-public class Behaviours {
+public class Behaviors {
 
     Map<String, Object> behavioursJSON = null;
     Map<String, Object> parameters;
     Context context;
     GETURLFunction getURL = null;
 
-    protected Behaviours(GETURLFunction getURL) {
+    protected Behaviors(GETURLFunction getURL) {
         this.getURL = getURL;
     }
 
     @RequiresApi(api = Build.VERSION_CODES.CUPCAKE)
-    public Behaviours(final String baseUrl, Map<String, Object> defaults, Context context, ExceptionCallback cb) {
+    public Behaviors(final String baseUrl, Map<String, Object> defaults, Context context, ExceptionCallback cb) {
 
         this.context = context;
         parameters = getDataFromSharedPreference();
@@ -86,7 +86,7 @@ public class Behaviours {
                     if (o == null) {
 
                         if (cb != null)
-                            cb.callback(new Exception("Failed to initialize Behaviours"));
+                            cb.callback(new Exception("Failed to initialize Behaviors"));
                         return;
                     }
                     behavioursJSON = (Map<String, Object>) o.get("response");
@@ -112,7 +112,7 @@ public class Behaviours {
     }
 
 
-    public Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>, Void> getBehaviour(final String behaviourName)
+    public Function<Map<String, Object>, BehaviorCallback<Map<String, Object>>, Void> getBehaviour(final String behaviourName)
             throws Exception {
 
         if (behaviourName == null) {
@@ -121,17 +121,17 @@ public class Behaviours {
         }
         if (behavioursJSON == null) {
 
-            throw new Exception("Behaviours is not ready yet");
+            throw new Exception("Behaviors is not ready yet");
         }
         final Map<String, Object> behaviour = (Map<String, Object>) behavioursJSON.get(behaviourName);
         if (behaviour == null) {
 
             throw new Exception("This behaviour does not exist");
         }
-        return new Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>, Void>() {
+        return new Function<Map<String, Object>, BehaviorCallback<Map<String, Object>>, Void>() {
 
             @Override
-            public Void apply(Map<String, Object> data, final BehaviourCallback<Map<String, Object>> cb) throws Exception {
+            public Void apply(Map<String, Object> data, final BehaviorCallback<Map<String, Object>> cb) throws Exception {
 
                 if (data == null) {
 
@@ -307,12 +307,12 @@ public class Behaviours {
                                 if (body.isEmpty())
                                     body.put("data", ((HashMap<String, Object>) response.get("response")).get("response"));
                                 headers.putAll(body);
-                                cb.callback(headers, new BehaviourError(exception != null ? exception.getMessage() : null));
+                                cb.callback(headers, new BehaviorError(exception != null ? exception.getMessage() : null));
                                 return;
                             }
                         }
                         cb.callback(response != null ? (HashMap<String, Object>) ((HashMap<String, Object>) response.get("response")).get("response") : null,
-                                new BehaviourError(exception != null ? exception.getMessage() : null));
+                                new BehaviorError(exception != null ? exception.getMessage() : null));
                     }
                 });
                 return null;
@@ -404,13 +404,13 @@ public class Behaviours {
     private void putDataIntoSharedPreference(Map<String, Object> data) {
 
         SharedPreferences prefs = context.getSharedPreferences("Behaviours_Pref", Context.MODE_PRIVATE);
-        prefs.edit().putString("Behaviours", new Gson().toJson(data)).apply();
+        prefs.edit().putString("Behaviors", new Gson().toJson(data)).apply();
     }
 
     private HashMap<String, Object> getDataFromSharedPreference() {
 
         SharedPreferences prefs = context.getSharedPreferences("Behaviours_Pref", Context.MODE_PRIVATE);
-        String strData = prefs.getString("Behaviours", null);
+        String strData = prefs.getString("Behaviors", null);
         HashMap<String, Object> data = new HashMap<>();
         if (strData != null) {
 
