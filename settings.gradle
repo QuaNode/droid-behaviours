@@ -1,1 +1,3 @@
-include ':app', ':Behaviors'
+include ':behaviors'
+include ':app'
+rootProject.name = "behaviours"

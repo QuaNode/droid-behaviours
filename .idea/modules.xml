@@ -2,10 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/Behaviors/Behaviors.iml" filepath="$PROJECT_DIR$/Behaviors/Behaviors.iml" />
-      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
-      <module fileurl="file://$PROJECT_DIR$/droid-behaviours.iml" filepath="$PROJECT_DIR$/droid-behaviours.iml" />
-      <module fileurl="file://E:\MAL\quanode.com\starter project\test\droid-behaviours\droid-behaviours.iml" filepath="E:\MAL\quanode.com\starter project\test\droid-behaviours\droid-behaviours.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/behaviours.iml" filepath="$PROJECT_DIR$/.idea/modules/behaviours.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/app/behaviours.app.iml" filepath="$PROJECT_DIR$/.idea/modules/app/behaviours.app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/behaviors/behaviours.behaviors.iml" filepath="$PROJECT_DIR$/.idea/modules/behaviors/behaviours.behaviors.iml" />
     </modules>
   </component>
 </project>
