@@ -1,8 +1,8 @@
 package com.quanode.behaviors;
 
-public interface Callback<T> {
+public interface Callback {
 
-    void callback(T t, Exception e);
+    void callback();
 }
 
 
