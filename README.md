@@ -1,2 +1,2 @@
 # droid-behaviours
-Behaviours client for Android 
+Android client for Behaviours 
