@@ -1,3 +1,2 @@
-include ':behaviors'
-include ':app'
 rootProject.name = "behaviours"
+include ':Behaviours'
