@@ -1,6 +1,5 @@
 package com.quanode.behaviours;
 
-
 public class BehaviourError extends Error {
 
     int code;
@@ -8,6 +7,7 @@ public class BehaviourError extends Error {
     private Exception exception;
 
     public BehaviourError(String message, int code, Exception exception) {
+
         super(message);
         this.code = code;
         this.exception = exception;
@@ -19,6 +19,7 @@ public class BehaviourError extends Error {
     }
 
     public String getMessage() {
+
         return message;
     }
 

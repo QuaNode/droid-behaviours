@@ -4,18 +4,8 @@
 
 package com.quanode.behaviours;
 
-import android.app.Application;
-import android.content.Context;
-import android.content.SharedPreferences;
-import android.os.AsyncTask;
-import com.google.gson.Gson;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
+import android.content.ContextWrapper;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -23,29 +13,26 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class Behaviours {
 
-    private Map<String, Object> behavioursJSON = null;
-    private Map<String, Object> parameters;
-    private static Application _context_;
-    private static GETURLFunction _getURL_;
+    private Map<String, Object> behavioursBody = null;
+    private Map<String, String> behavioursHeaders = null;
+    private Map<String, Object> _defaults_ = null;
+    private BehaviourErrorCallback errorCallback = null;
     private ArrayList<Callback> callbacks = new ArrayList<>();
+    private Cache cache;
+    private HttpTask httpTask;
 
-    protected Behaviours(GETURLFunction getURL) {
+    protected Behaviours(final String baseUrl, ContextWrapper context) {
 
-        _getURL_ = getURL;
+        this(baseUrl, context, null);
     }
-    Cache cache= new Cache();
-    public Behaviours(final String baseUrl, Map<String, Object> defaults, Application context, ExceptionCallback cb) {
 
-        _context_ = context;
-        parameters = cache.getDataFromSharedPreference();
-        if (defaults != null) parameters.putAll(defaults);
-        _getURL_ = new GETURLFunction() {
+    protected Behaviours(final String baseUrl, ContextWrapper context, BehaviourErrorCallback cb) {
+
+        this(new GETURLFunction() {
 
             @Override
             public URL apply(String path) throws MalformedURLException, URISyntaxException {
@@ -54,64 +41,83 @@ public class Behaviours {
                 url.toURI();
                 return url;
             }
-
-            @Override
-            public boolean equals(Object var1) {
-
-                return false;
-            }
-        };
-        initiateBehaviour(cb);
+        }, null, context, cb);
     }
 
-    public void onReady(Callback cb) {
+    public Behaviours(GETURLFunction getURL, Map<String, Object> defaults, ContextWrapper context,
+                      BehaviourErrorCallback cb) {
 
-        if (cb == null) return;
-        if (behavioursJSON == null) {
-
-            callbacks.add(cb);
-        } else cb.callback();
+        cache = new Cache(context);
+        httpTask = new HttpTask(getURL);
+        init(cb, defaults);
     }
 
-    private void initiateBehaviour(final ExceptionCallback cb) {
+    private void init(final BehaviourErrorCallback cb, Map<String, Object> defaults) {
 
-        ConnectionEstablishment connection = new ConnectionEstablishment();
-        connection.execute("/behaviours", null, "GET", null, new BehaviourCallback<Map<String, Object>>() {
+        httpTask.execute("/behaviours", null, "GET", null,
+                new BehaviourCallback<Map<String, Object>>() {
 
             @Override
-            public void callback(Map<String, Object> o, BehaviourError e) {
+            public void callback(Map<String, Object> response, BehaviourError e) {
 
                 if (e != null) {
 
-                    if (cb != null) cb.callback(e.getException());
+                    if (cb != null) cb.callback(e);
                 } else {
 
-                    if (o == null) {
+                    if (response == null) {
 
-                        if (cb != null) cb.callback(new Exception("Failed to initialize Behaviours"));
+                        Exception exception = new Exception("Failed to initialize Behaviours");
+                        if (cb != null)
+                            cb.callback(new BehaviourError(exception.getMessage(), 0, exception));
                         return;
                     }
-                    behavioursJSON = (Map<String, Object>) o.get("response");
+                    behavioursBody = (Map<String, Object>) response.get("response");
+                    behavioursHeaders = new HashMap();
+                    Map<String, String> headers =  (Map<String, String>) response.get("headers");
+                    if (headers.get("Content-Type") != null) {
+
+                        behavioursHeaders.put("Content-Type", headers.get("Content-Type"));
+                    }
                     for (Callback cb: callbacks) cb.callback();
+                    errorCallback = cb;
+                    _defaults_ = defaults;
                 }
             }
         });
     }
 
+    public URL getBaseURL() throws IOException, URISyntaxException {
 
+        return httpTask._getURL_.apply("");
+    }
 
-    public Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>, Void> getBehaviour(final String behaviourName)
-            throws Exception {
+    public void onReady(Callback cb) {
+
+        if (cb == null) return;
+        if (behavioursBody == null) {
+
+            callbacks.add(cb);
+        } else cb.callback();
+    }
+
+    private boolean isEqual(Object o1, Object o2) {
+
+        return o1 != null && o1.equals(o2);
+    }
+
+    public Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>,
+            Void> getBehaviour(final String behaviourName) throws Exception {
 
         if (behaviourName == null) {
 
             throw new Exception("Invalid behaviour name");
         }
-        if (behavioursJSON == null) {
+        if (behavioursBody == null) {
 
             throw new Exception("Behaviours is not ready yet");
         }
-        final Map<String, Object> behaviour = (Map<String, Object>) behavioursJSON.get(behaviourName);
+        final Map<String, Object> behaviour = (Map<String, Object>) behavioursBody.get(behaviourName);
         if (behaviour == null) {
 
             throw new Exception("This behaviour does not exist");
@@ -119,348 +125,285 @@ public class Behaviours {
         return new Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>, Void>() {
 
             @Override
-            public Void apply(Map<String, Object> data, final BehaviourCallback<Map<String, Object>> cb) throws Exception {
+            public Void apply(Map<String, Object> behaviourData, final BehaviourCallback<Map<String,
+                    Object>> cb) throws Exception {
 
-                if (data == null) {
+                if (behaviourData == null) {
 
-                    data = new HashMap<>();
+                    behaviourData = new HashMap<>();
                 }
+                Map<String, Object> parameters = cache.getParameter();
+                if (_defaults_ != null) parameters.putAll(_defaults_);
                 final Map<String, Object> params = new HashMap<>();
+                Map<String, Object> _params_ = (Map<String, Object>) behaviour.get("parameters");
+                if (_params_ instanceof HashMap && _params_ != null) {
 
-                if (behaviour.get("parameters") instanceof HashMap) {
+                    for (final String key : _params_.keySet()) {
 
-                    params.putAll((HashMap<String, Object>) behaviour.get("parameters"));
+                        final Object value = _params_.get(key);
+                        params.put(key, parameters.get(key) != null ? parameters.get(key) : value);
+                    }
                 }
-                params.putAll(parameters);
                 Map<String, Object> headers = new HashMap<>();
+                if (behavioursHeaders != null) headers.putAll(behavioursHeaders);
                 Map<String, Object> body = new HashMap<>();
                 String url = (String) behaviour.get("path");
                 for (final String key : params.keySet()) {
 
-                    if (cache.getValueForParameter((Map) params.get(key), data, key, behaviourName) == null)
-                        continue;
-                    if (params.get(key) instanceof HashMap) {
+                    Map param = (HashMap) params.get(key);
+                    if (param == null || !(param instanceof Map)) continue;
+                    Object value = cache.getValueForParameter(param, behaviourData, key, behaviourName);
+                    String type = null;
+                    if (param.get("type") != null) type = (String) param.get("type");
+                    if (value == null && !type.equals("path")) continue;
+                    Object _unless_ = param.get("unless");
+                    if (_unless_ instanceof String[]) {
 
-                        Object _unless_ = ((HashMap) params.get(key)).get("unless");
-                        if (_unless_ instanceof String[]) {
-
-                            if ((new ArrayList<>((Collection<? extends String>) _unless_).contains(behaviourName))) {
-
-                                continue;
-                            }
-                        }
+                        ArrayList __unless__ = new ArrayList<>((Collection<? extends String>) _unless_);
+                        if (__unless__.contains(behaviourName)) continue;
                     }
-                    if (params.get(key) instanceof Map) {
+                    Object _for_ = param.get("for");
+                    if (_for_ instanceof String[]) {
 
-                        Object _for_ = ((Map) params.get(key)).get("for");
-                        if (_for_ instanceof String[]) {
-
-                            if (!(new ArrayList<>((Collection<? extends String>) _for_).contains(behaviourName))) {
-
-                                continue;
-                            }
-                        }
+                        ArrayList __for__ = new ArrayList<>((Collection<? extends String>) _for_);
+                        if (!__for__.contains(behaviourName)) continue;
                     }
-                    if (((Map<String, Object>) params.get(key)).get("type") != null) {
+                    switch (type) {
 
-                        switch ((String) ((Map<String, Object>) params.get(key)).get("type")) {
+                        case "header": {
 
-                            case "header": {
+                            headers.put((String) param.get("key"), value != null ? value.toString() : null);
+                            break;
+                        }
+                        case "body": {
 
-                                headers.put((String) ((Map) params.get(key)).get("key"),
-                                        cache.getValueForParameter((Map) params.get(key), data, key, behaviourName));
-                                break;
-                            }
-                            case "body": {
+                            String[] paths = ((String) param.get("key")).split("\\.");
+                            Map<String, Object> nestedData = body;
+                            String lastPath = null;
+                            for (String path : paths) {
 
-                                String[] paths = ((String) ((Map) params.get(key)).get("key")).split("\\.");
-                                Map<String, Object> nestedData = body;
-                                String lastPath = null;
-                                for (String path : paths) {
+                                if (lastPath != null) {
 
-                                    if (lastPath != null) {
-
-                                        nestedData = (Map<String, Object>) nestedData.get(lastPath);
-                                    }
-                                    if (nestedData.get(path) == null) {
-
-                                        nestedData.put(path, new HashMap<String, Object>());
-                                    }
-                                    lastPath = path;
+                                    nestedData = (Map<String, Object>) nestedData.get(lastPath);
                                 }
-                                if (lastPath != null)
-                                    nestedData.put(lastPath, cache.getValueForParameter((Map) params.get(key), data, key, behaviourName));
-                                break;
-                            }
-                            case "query": {
+                                if (nestedData.get(path) == null) {
 
-                                if (url.indexOf('?') == -1) {
-
-                                    url += '?';
+                                    nestedData.put(path, new HashMap<String, Object>());
                                 }
-                                String behaviourKey = URLEncoder.encode((String) ((HashMap) params.get(key)).get("key"), "UTF-8");
-                                String dataValue = URLEncoder.encode(cache.getValueForParameter((Map) params.get(key), data, key,
-                                        behaviourName).toString(), "UTF-8");
-                                url += '&' + behaviourKey + '=' + dataValue;
-                                break;
+                                lastPath = path;
                             }
-                            case "path": {
+                            if (lastPath != null) nestedData.put(lastPath, value);
+                            break;
+                        }
+                        case "query": {
 
-                                String dataValue = URLEncoder.encode(cache.getValueForParameter((Map) params.get(key), data, key,
-                                        behaviourName).toString(), "UTF-8");
-                                url = url.replace(':' + (String) ((HashMap) params.get(key)).get("key"), dataValue);
-                                break;
+                            String and = "&";
+                            if (url.indexOf('?') == -1) {
+
+                                url += '?';
+                                and = "";
                             }
+                            String _key_ = URLEncoder.encode((String) param.get("key"), "UTF-8");
+                            String _value_ = "";
+                            if  (value != null) {
+
+                                _value_ = URLEncoder.encode(value.toString(), "UTF-8");
+                            }
+                            url += and + _key_ + '=' + _value_;
+                            break;
+                        }
+                        case "path": {
+
+                            String _value_ = "*";
+                            if (value != null) {
+
+                                _value_ = URLEncoder.encode(value.toString(), "UTF-8");
+                            }
+                            url = url.replace(':' + (String) param.get("key"), _value_);
+                            break;
                         }
                     }
                 }
-                ConnectionEstablishment connection = new ConnectionEstablishment();
-                connection.execute(url, headers, behaviour.get("method").toString(), body, new BehaviourCallback<Map<String, Object>>() {
+                final String _url_ = url;
+                Map request = new HashMap<>();
+                Function<String, Void, Void> _request_ = new Function<String, Void, Void>() {
 
                     @Override
-                    public void callback(Map<String, Object> response, BehaviourError error) {
+                    public Void apply(String signature, Void __) {
 
-                        Map<String, Object> headers = new HashMap<>();
-                        Map<String, Object> body = new HashMap<>();
-                        if (behaviour.get("returns") instanceof HashMap && response != null) {
+                        if (signature != null) {
 
-                            for (String key : ((HashMap<String, Object>) behaviour.get("returns")).keySet()) {
+                            headers.put("Behaviour-Signature", signature);
+                        }
+                        httpTask.execute(_url_, headers, behaviour.get("method").toString(), body,
+                                new BehaviourCallback<Map<String, Object>>() {
 
-                                Object paramValue = null;
-                                String paramKey = null;
-                                String paramType = ((String) ((HashMap<String, Object>) ((HashMap<String, Object>)
-                                        behaviour.get("returns")).get(key)).get("type"));
-                                if (isEqual(paramType, "header")) {
+                            @Override
+                            public void callback(Map<String, Object> response, BehaviourError error) {
 
-                                    paramValue = ((HashMap<String, Object>) response.get("headers")).get(key);
-                                    paramKey = (String) ((HashMap<String, Object>) ((HashMap<String, Object>)
-                                            behaviour.get("returns")).get(key)).get("key");
-                                    if (paramKey == null) paramKey = key;
-                                    headers.put(paramKey, paramValue);
+                                if (error != null && errorCallback != null)
+                                    errorCallback.callback(error);
+                                HashMap<String, Object> resBody = null;
+                                HashMap<String, String> resHeaders = null;
+                                if (response != null) {
+
+                                    resBody = (HashMap<String, Object>) response.get("response");
+                                    resHeaders = (HashMap<String, String>) response.get("headers");
                                 }
-                                if (isEqual(paramType, "body")) {
+                                if (resBody != null && resBody.get("signature") != null) {
 
-                                    paramValue = ((HashMap<String, Object>) response.get("response")).get("response");
-                                    if (paramValue instanceof HashMap)
-                                        paramValue = ((HashMap<String, Object>) paramValue).get(key);
-                                    paramKey = key;
-                                    body.put(paramKey, paramValue);
-                                }
-                                Object purposes = ((HashMap<String, Object>) ((HashMap<String, Object>)
-                                        behaviour.get("returns")).get(key)).get("purpose");
-                                if (purposes != null && paramValue != null && paramKey != null) {
+                                    try {
 
-                                    if (!(purposes instanceof ArrayList)) {
+                                        Function<String, Void, Void> __request__ =
+                                                (Function<String, Void, Void>) request.get("request");
+                                        __request__.apply(resBody.get("signature").toString(), null);
+                                    } catch (Exception ex) {
 
-                                        ArrayList<Object> purposeList = new ArrayList<>();
-                                        purposeList.add(purposes);
-                                        ((HashMap<String, Object>) ((HashMap<String, Object>)
-                                                behaviour.get("returns")).get(key)).put("purpose", purposeList);
-                                        purposes = purposeList;
+                                        BehaviourError e =
+                                                new BehaviourError(ex.getMessage(), -1, ex);
+                                        cb.callback(null, e);
                                     }
-                                    for (Object purpose : ((ArrayList<Object>) purposes)) {
+                                    return;
+                                }
+                                Map<String, Object> headers = new HashMap<>();
+                                Map<String, Object> body = new HashMap<>();
+                                Map<String, Object> returns =
+                                        (Map<String, Object>) behaviour.get("returns");
+                                if (returns instanceof HashMap && resBody != null && resHeaders != null) {
 
-                                        switch ((String) (purpose instanceof HashMap ?
-                                                ((HashMap<String, String>) purpose).get("as") : purpose)) {
+                                    for (String key : returns.keySet()) {
 
-                                            case "parameter":
-                                                Map<String, Object> param = new HashMap<>();
-                                                param.put("key", key);
-                                                param.put("type", paramType);
-                                                parameters.put(paramKey, param);
-                                                param = cache.getDataFromSharedPreference();
-                                                param.put(paramKey, parameters.get(paramKey));
-                                                if (purpose instanceof HashMap &&
-                                                        ((HashMap<String, Object>) purpose).get("unless") != null) {
+                                        Map<String, Object> _return_ =
+                                                (HashMap<String, Object>) returns.get(key);
+                                        Object paramValue = null;
+                                        String paramKey = null;
+                                        String paramType = null;
+                                        if (_return_ != null) {
 
-                                                    ((HashMap<String, Object>) parameters.get(paramKey)).put("unless",
-                                                            ((HashMap<String, Object>) purpose).get("unless"));
-                                                    ((HashMap<String, Object>) param.get(paramKey)).put("unless",
-                                                            ((HashMap<String, Object>) purpose).get("unless"));
+                                            paramType = ((String) _return_.get("type"));
+                                        }
+                                        if (isEqual(paramType, "header")) {
+
+                                            paramValue = resHeaders.get(key);
+                                            paramKey = (String) _return_.get("key");
+                                            if (paramKey == null) paramKey = key;
+                                            headers.put(paramKey, paramValue);
+                                        }
+                                        if (isEqual(paramType, "body")) {
+
+                                            paramValue = resBody.get("response");
+                                            if (paramValue instanceof HashMap) {
+
+                                                paramValue =
+                                                        ((HashMap<String, Object>) paramValue).get(key);
+                                            }
+                                            paramKey = key;
+                                            body.put(paramKey, paramValue);
+                                        }
+                                        Object purposes = _return_.get("purpose");
+                                        if (purposes != null && paramValue != null && paramKey != null) {
+
+                                            if (!(purposes instanceof ArrayList)) {
+
+                                                ArrayList<Object> purposeList = new ArrayList<>();
+                                                purposeList.add(purposes);
+                                                _return_.put("purpose", purposeList);
+                                                purposes = purposeList;
+                                            }
+                                            for (Object purpose : ((ArrayList<Object>) purposes)) {
+
+                                                Object as = purpose;
+                                                if (purpose instanceof HashMap) {
+
+                                                    as = ((HashMap<String, String>) purpose).get("as");
                                                 }
-                                                if (purpose instanceof HashMap &&
-                                                        ((HashMap<String, Object>) purpose).get("for") != null) {
+                                                if (as == null) as = "";
+                                                switch (as.toString()) {
 
-                                                    ((HashMap<String, Object>) parameters.get(paramKey)).put("for",
-                                                            ((HashMap<String, Object>) purpose).get("for"));
-                                                    ((HashMap<String, Object>) param.get(paramKey)).put("for",
-                                                            ((HashMap<String, Object>) purpose).get("for"));
-                                                }
-                                                for (Object p : ((ArrayList<Object>) purposes)) {
+                                                    case "parameter":
+                                                        Map<String, Object> param = new HashMap<>();
+                                                        param.put("key", key);
+                                                        param.put("type", paramType);
+                                                        parameters.put(paramKey, param);
+                                                        param = cache.getParameter();
+                                                        param.put(paramKey, parameters.get(paramKey));
+                                                        Object __unless__ = null;
+                                                        Object __for__ = null;
+                                                        Map<String, Object> parameter;
+                                                        if (purpose instanceof HashMap) {
 
-                                                    if (isEqual(p, "constant") || (p instanceof HashMap &&
-                                                            isEqual(((HashMap<String, Object>) p).get("as"), "constant"))) {
+                                                            __unless__ = ((HashMap<String, Object>)
+                                                                    purpose).get("unless");
+                                                            __for__ = ((HashMap<String, Object>)
+                                                                    purpose).get("for");
+                                                        }
+                                                        if (__unless__ != null) {
 
-                                                        ((HashMap<String, Object>) parameters.get(paramKey)).put("value", paramValue);
-                                                        ((HashMap<String, Object>) param.get(paramKey)).put("value", paramValue);
+                                                            parameter = (HashMap<String, Object>)
+                                                                    parameters.get(paramKey);
+                                                            parameter.put("unless", __unless__);
+                                                            parameter = (HashMap<String, Object>)
+                                                                    param.get(paramKey);
+                                                            parameter.put("unless", __unless__);
+                                                        }
+                                                        if (__for__ != null) {
+
+                                                            parameter = (HashMap<String, Object>)
+                                                                    parameters.get(paramKey);
+                                                            parameter.put("for", __for__);
+                                                            parameter = (HashMap<String, Object>)
+                                                                    param.get(paramKey);
+                                                            parameter.put("for", __for__);
+                                                        }
+                                                        for (Object otherPurpose :
+                                                                ((ArrayList<Object>) purposes)) {
+
+                                                            if (isEqual(otherPurpose, "constant") ||
+                                                                    (otherPurpose instanceof HashMap &&
+                                                                    isEqual(((HashMap<String, Object>)
+                                                                            otherPurpose).get("as"),
+                                                                            "constant"))) {
+
+                                                                parameter = (HashMap<String, Object>)
+                                                                        parameters.get(paramKey);
+                                                                parameter.put("value", paramValue);
+                                                                parameter = (HashMap<String, Object>)
+                                                                        param.get(paramKey);
+                                                                parameter.put("value", paramValue);
+                                                                break;
+                                                            }
+                                                        }
+                                                        parameter = (HashMap<String, Object>)
+                                                                parameters.get(paramKey);
+                                                        parameter.put("source", true);
+                                                        parameter = (HashMap<String, Object>)
+                                                                param.get(paramKey);
+                                                        parameter.put("source", true);
+                                                        cache.setParameter(param);
                                                         break;
-                                                    }
                                                 }
-                                                putDataIntoSharedPreference(param);
-                                                break;
+                                            }
                                         }
                                     }
-                                }
-                            }
-                            if (!headers.isEmpty()) {
+                                    if (!headers.isEmpty()) {
 
-                                if (body.isEmpty()) body.put("data",
-                                        ((HashMap<String, Object>) response.get("response")).get("response"));
-                                headers.putAll(body);
-                                cb.callback(headers, error);
-                                return;
+                                        if (body.isEmpty()) body.put("data", resBody.get("response"));
+                                        headers.putAll(body);
+                                        cb.callback(headers, error);
+                                        return;
+                                    }
+                                }
+                                cb.callback(resBody != null ? (HashMap<String, Object>)
+                                        resBody.get("response") : null, error);
                             }
-                        }
-                        cb.callback(response != null ? (HashMap<String, Object>) ((HashMap<String, Object>)
-                                response.get("response")).get("response") : null, error);
+                        });
+                        return null;
                     }
-                });
+                };
+                request.put("request", _request_);
+                _request_.apply(null, null);
                 return null;
             }
-
-            @Override
-            public boolean equals(Object var1, Object var2) {
-
-                return false;
-            }
         };
-    }
-
-
-    private static Map<String, Object> jsonToMap(String jsonStr) throws JSONException {
-
-        JSONObject json = new JSONObject(jsonStr);
-        Map<String, Object> retMap = new HashMap<>();
-        if (json != JSONObject.NULL) {
-
-            retMap = toMap(json);
-        }
-        return retMap;
-    }
-
-    public static Map<String, Object> toMap(JSONObject object) throws JSONException {
-
-        Map<String, Object> map = new HashMap<>();
-        Iterator<String> keysItr = object.keys();
-        while (keysItr.hasNext()) {
-
-            String key = keysItr.next();
-            if (!object.isNull(key)) {
-
-                Object value = object.get(key);
-                if (value instanceof JSONArray) {
-
-                    value = toList((JSONArray) value);
-                } else if (value instanceof JSONObject) {
-
-                    value = toMap((JSONObject) value);
-                }
-                map.put(key, value);
-            }
-        }
-        return map;
-    }
-
-    private static List<Object> toList(JSONArray array) throws JSONException {
-
-        List<Object> list = new ArrayList<>();
-        for (int i = 0; i < array.length(); i++) {
-
-            Object value = array.get(i);
-            if (value != JSONObject.NULL) {
-
-                if (value instanceof JSONArray) {
-
-                    value = toList((JSONArray) value);
-                } else if (value instanceof JSONObject) {
-
-                    value = toMap((JSONObject) value);
-                }
-                list.add(value);
-            }
-        }
-        return list;
-    }
-
-    private void putDataIntoSharedPreference(Map<String, Object> data) {
-
-        SharedPreferences prefs =cache. _context_.getSharedPreferences("Behaviours_Pref", Context.MODE_PRIVATE);
-        prefs.edit().putString("Behaviours", new Gson().toJson(data)).apply();
-    }
-
-
-
-    private boolean isEqual(Object o1, Object o2) {
-
-        return o1 != null && o1.equals(o2);
-    }
-
-    private static class ConnectionEstablishment extends AsyncTask<Object, Void, BehaviourCallback> {
-
-        HashMap<String, Object> response = null;
-        BehaviourError error;
-        Exception exception;
-
-        @Override
-        protected BehaviourCallback doInBackground(Object... params) {
-            HttpTask httpTask= new HttpTask("baseUrl");
-            HttpURLConnection httpCon;
-            BehaviourCallback cb = (BehaviourCallback) params[4];
-            try {
-
-                httpCon = httpTask.getConnection((String) params[0], (Map<String, Object>) params[1], (String) params[2],
-                        (Map<String, Object>) params[3]);
-            } catch (Exception ex) {
-
-                exception = ex;
-                ex.printStackTrace();
-                return cb;
-            }
-            try {
-
-                InputStream in = httpCon.getResponseCode() == HttpURLConnection.HTTP_OK ?
-                        httpCon.getInputStream() : httpCon.getErrorStream();
-                StringBuilder sb = new StringBuilder();
-                BufferedReader br = new BufferedReader(new InputStreamReader(in));
-                String read;
-                while ((read = br.readLine()) != null) {
-
-                    sb.append(read);
-                }
-                br.close();
-                response = new HashMap<>();
-                response.put("response", jsonToMap(sb.toString()));
-                HashMap<String, Object> headers = new HashMap<>();
-                for (String key : httpCon.getHeaderFields().keySet()) {
-
-                    headers.put(key, httpCon.getHeaderField(key));
-                }
-                response.put("headers", headers);
-                if (httpCon.getResponseCode() != HttpURLConnection.HTTP_OK) {
-
-                    exception = new Exception(httpCon.getResponseMessage());
-                    String errorMessage = exception.getMessage();
-                    if (response.get("response") instanceof Map && ((Map) response.get("response")).get("message") != null)
-                        errorMessage = (String) ((Map) response.get("response")).get("message");
-                    error = new BehaviourError(errorMessage, httpCon.getResponseCode(), exception);
-                }
-            } catch (Exception ex) {
-
-                exception = ex;
-                ex.printStackTrace();
-            } finally {
-
-                if (httpCon != null) httpCon.disconnect();
-            }
-            return cb;
-        }
-
-        @Override
-        protected void onPostExecute(BehaviourCallback cb) {
-
-            super.onPostExecute(cb);
-            if (error == null && exception != null) error = new BehaviourError(exception.getMessage(), -1, exception);
-            cb.callback(response, error);
-        }
     }
 }

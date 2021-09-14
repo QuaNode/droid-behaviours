@@ -44,17 +44,11 @@ Properties properties = new Properties()
 properties.load(project.rootProject.file('local.properties').newDataInputStream())
 def GITHUB_ACTOR = properties.getProperty('GITHUB_ACTOR')
 def GITHUB_TOKEN = properties.getProperty('GITHUB_TOKEN')
-
-sourceSets {
-    main {
-        java {
-            include 'src/main/java'
-        }
-    }
-}
+def MAVEN_USERNAME = properties.getProperty('MAVEN_USERNAME')
+def MAVEN_PASSWORD = properties.getProperty('MAVEN_PASSWORD')
 
 task sourceJar(type: Jar) {
-    from sourceSets.main.java
+    from android.sourceSets.main.java.srcDirs
     archiveClassifier = "sources"
 }
 
@@ -67,7 +61,7 @@ publishing {
             artifact sourceJar
             pom {
                 name = 'Behaviours'
-                description = 'Behaviours client for Android'
+                description = 'Android client for Behaviours'
                 url = 'https://github.com/QuaNode/droid-behaviours'
                 licenses {
                     license {
@@ -97,6 +91,14 @@ publishing {
             credentials {
                 username = GITHUB_ACTOR
                 password = GITHUB_TOKEN
+            }
+        }
+        maven {
+            name = "OSSRH"
+            url = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+            credentials {
+                username = MAVEN_USERNAME
+                password = MAVEN_PASSWORD
             }
         }
     }

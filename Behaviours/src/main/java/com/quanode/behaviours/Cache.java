@@ -1,38 +1,49 @@
 package com.quanode.behaviours;
 
-import android.app.Application;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.SharedPreferences;
-
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
 
 public class Cache {
 
-    public Object getValueForParameter(Map<String, Object> parameter, Map<String, Object> data, String key, String name)
-            throws Exception {
+    private static ContextWrapper _context_;
+
+    public Cache(ContextWrapper context) {
+
+        _context_ = context;
+    }
+
+    public Object getValueForParameter(Map<String, Object> parameter, Map<String, Object> data,
+                                       String key, String name) throws Exception {
 
         if (data.get(key) != null) return data.get(key);
         if (parameter.get("value") != null) return parameter.get("value") instanceof Function ?
-                (((Function<String, Map<String, Object>, String>) parameter.get("value"))).apply(name, data) :
-                (String) parameter.get("value");
+                (((Function<String, Map<String, Object>, String>)
+                        parameter.get("value"))).apply(name, data) : (String) parameter.get("value");
         else if (isEqual(parameter.get("source"), true)) {
 
-            if (getDataFromSharedPreference().get(key) instanceof HashMap) {
+            if (getParameter().get(key) instanceof HashMap) {
 
-                Map<String, Object> param = (Map<String, Object>) getDataFromSharedPreference().get(key);
-                if (param.get("value") != null) return param.get("value");
+                Map<String, Object> param = (Map<String, Object>) getParameter().get(key);
+                return param.get("value");
             }
         }
         return null;
     }
 
-    public static Application _context_;
-    public HashMap<String, Object> getDataFromSharedPreference() {
+    public void setParameter(Map<String, Object> data) {
+
+        SharedPreferences prefs =
+                _context_.getSharedPreferences("Behaviours_Pref", Context.MODE_PRIVATE);
+        prefs.edit().putString("Behaviours", new Gson().toJson(data)).apply();
+    }
+
+    public HashMap<String, Object> getParameter() {
 
         SharedPreferences prefs = _context_.getSharedPreferences("Behaviours_Pref", Context.MODE_PRIVATE);
         String strData = prefs.getString("Behaviours", null);
@@ -40,8 +51,7 @@ public class Cache {
         if (strData != null) {
 
             Gson gson = new Gson();
-            Type hashMapType = new TypeToken<HashMap<String, Object>>() {
-            }.getType();
+            Type hashMapType = new TypeToken<HashMap<String, Object>>() { }.getType();
             data = gson.fromJson(strData, hashMapType);
         }
         return data;

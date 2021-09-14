@@ -1,5 +1,3 @@
-
-
 package com.quanode.behaviours;
 
 public interface BehaviourCallback<T> {

@@ -11,5 +11,4 @@ import java.net.URL;
 public interface GETURLFunction {
 
     URL apply(String path) throws IOException, URISyntaxException;
-    boolean equals(Object var1);
 }
