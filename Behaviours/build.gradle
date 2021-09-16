@@ -1,23 +1,20 @@
 plugins {
     id 'com.android.library'
     id 'maven-publish'
+    id 'signing'
 }
 
 android {
-    compileSdk 31
-
+    compileSdkVersion 31
+    buildToolsVersion '30.0.2'
     defaultConfig {
-        minSdk 21
-        targetSdk 31
-        versionCode 1
-        versionName "1.0"
-
+        minSdkVersion 19
+        targetSdkVersion 31
+        versionCode 4
+        versionName "1.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
-        targetSdkVersion 31
-        minSdkVersion 23
     }
-
     buildTypes {
         release {
             minifyEnabled false
@@ -28,12 +25,9 @@ android {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
     }
-    compileSdkVersion 31
-    buildToolsVersion '31.0.0'
 }
 
 dependencies {
-
     implementation 'com.google.code.gson:gson:2.8.6'
     testImplementation 'junit:junit:4.+'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'
@@ -47,20 +41,60 @@ def GITHUB_TOKEN = properties.getProperty('GITHUB_TOKEN')
 def MAVEN_USERNAME = properties.getProperty('MAVEN_USERNAME')
 def MAVEN_PASSWORD = properties.getProperty('MAVEN_PASSWORD')
 
-task sourceJar(type: Jar) {
+task sourcesJar(type: Jar) {
     from android.sourceSets.main.java.srcDirs
-    archiveClassifier = "sources"
+    archiveClassifier = 'sources'
+}
+
+task javadoc(type: Javadoc) {
+    source = android.sourceSets.main.java.source
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    excludes = ['**/*.kt']
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    from javadoc.destinationDir
+    archiveClassifier = 'javadoc'
+}
+
+if (JavaVersion.current().isJava8Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.addStringOption('Xdoclint:none', '-quiet')
+        }
+    }
+}
+
+if (JavaVersion.current().isJava9Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.addBooleanOption('html5', true)
+        }
+    }
+}
+
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
+android.libraryVariants.all { variant ->
+    tasks.javadoc.doFirst {
+        classpath += files(variant.javaCompileProvider.get().classpath.files.join(File.pathSeparator))
+    }
 }
 
 publishing {
     publications {
         release(MavenPublication) {
             groupId = 'com.quanode'
-            artifactId = 'behaviours'
-            version = '1.0'
-            artifact sourceJar
+            artifactId = "behaviours"
+            version =  android.defaultConfig.versionName
+            artifact "$buildDir/outputs/aar/Behaviours-release.aar"
+            artifact sourcesJar
+            artifact javadocJar
             pom {
                 name = 'Behaviours'
+                packaging 'aar'
                 description = 'Android client for Behaviours'
                 url = 'https://github.com/QuaNode/droid-behaviours'
                 licenses {
@@ -80,6 +114,10 @@ publishing {
                     connection = 'git+https://github.com/QuaNode/droid-behaviours.git'
                     developerConnection = 'git+https://github.com/QuaNode/droid-behaviours.git'
                     url = 'https://github.com/QuaNode/droid-behaviours'
+                }
+                signing {
+                    sign publishing.publications.release
+                    sign configurations.archives
                 }
             }
         }

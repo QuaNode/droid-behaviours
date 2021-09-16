@@ -25,12 +25,18 @@ public class Behaviours {
     private Cache cache;
     private HttpTask httpTask;
 
-    protected Behaviours(final String baseUrl, ContextWrapper context) {
+    public Behaviours(final String baseUrl, ContextWrapper context) {
 
         this(baseUrl, context, null);
     }
 
-    protected Behaviours(final String baseUrl, ContextWrapper context, BehaviourErrorCallback cb) {
+    public Behaviours(final String baseUrl, ContextWrapper context, BehaviourErrorCallback cb) {
+
+        this(baseUrl, null, context, cb);
+    }
+
+    public Behaviours(final String baseUrl, Map<String, Object> defaults, ContextWrapper context,
+                      BehaviourErrorCallback cb) {
 
         this(new GETURLFunction() {
 
@@ -41,7 +47,7 @@ public class Behaviours {
                 url.toURI();
                 return url;
             }
-        }, null, context, cb);
+        }, defaults, context, cb);
     }
 
     public Behaviours(GETURLFunction getURL, Map<String, Object> defaults, ContextWrapper context,
