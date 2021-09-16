@@ -115,10 +115,10 @@ publishing {
                     developerConnection = 'git+https://github.com/QuaNode/droid-behaviours.git'
                     url = 'https://github.com/QuaNode/droid-behaviours'
                 }
-                signing {
-                    sign publishing.publications.release
-                    sign configurations.archives
-                }
+//                signing {
+//                    sign publishing.publications.release
+//                    sign configurations.archives
+//                }
             }
         }
     }
