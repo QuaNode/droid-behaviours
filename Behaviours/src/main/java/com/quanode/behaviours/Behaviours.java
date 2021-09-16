@@ -78,9 +78,9 @@ public class Behaviours {
                             cb.callback(new BehaviourError(exception.getMessage(), 0, exception));
                         return;
                     }
-                    behavioursBody = (Map<String, Object>) response.get("response");
+                    behavioursBody = (Map) response.get("response");
                     behavioursHeaders = new HashMap();
-                    Map<String, String> headers =  (Map<String, String>) response.get("headers");
+                    Map<String, String> headers =  (Map) response.get("headers");
                     if (headers.get("Content-Type") != null) {
 
                         behavioursHeaders.put("Content-Type", headers.get("Content-Type"));
@@ -123,7 +123,7 @@ public class Behaviours {
 
             throw new Exception("Behaviours is not ready yet");
         }
-        final Map<String, Object> behaviour = (Map<String, Object>) behavioursBody.get(behaviourName);
+        final Map behaviour = (Map) behavioursBody.get(behaviourName);
         if (behaviour == null) {
 
             throw new Exception("This behaviour does not exist");
@@ -141,7 +141,7 @@ public class Behaviours {
                 Map<String, Object> parameters = cache.getParameter();
                 if (_defaults_ != null) parameters.putAll(_defaults_);
                 final Map<String, Object> params = new HashMap<>();
-                Map<String, Object> _params_ = (Map<String, Object>) behaviour.get("parameters");
+                Map<String, Object> _params_ = (Map) behaviour.get("parameters");
                 if (_params_ instanceof HashMap && _params_ != null) {
 
                     for (final String key : _params_.keySet()) {
@@ -156,7 +156,7 @@ public class Behaviours {
                 String url = (String) behaviour.get("path");
                 for (final String key : params.keySet()) {
 
-                    Map param = (HashMap) params.get(key);
+                    Map param = (Map) params.get(key);
                     if (param == null || !(param instanceof Map)) continue;
                     Object value = cache.getValueForParameter(param, behaviourData, key, behaviourName);
                     String type = null;
@@ -190,7 +190,7 @@ public class Behaviours {
 
                                 if (lastPath != null) {
 
-                                    nestedData = (Map<String, Object>) nestedData.get(lastPath);
+                                    nestedData = (Map) nestedData.get(lastPath);
                                 }
                                 if (nestedData.get(path) == null) {
 
@@ -249,12 +249,12 @@ public class Behaviours {
 
                                 if (error != null && errorCallback != null)
                                     errorCallback.callback(error);
-                                HashMap<String, Object> resBody = null;
-                                HashMap<String, String> resHeaders = null;
+                                Map resBody = null;
+                                Map resHeaders = null;
                                 if (response != null) {
 
-                                    resBody = (HashMap<String, Object>) response.get("response");
-                                    resHeaders = (HashMap<String, String>) response.get("headers");
+                                    resBody = (Map) response.get("response");
+                                    resHeaders = (Map) response.get("headers");
                                 }
                                 if (resBody != null && resBody.get("signature") != null) {
 
@@ -273,14 +273,12 @@ public class Behaviours {
                                 }
                                 Map<String, Object> headers = new HashMap<>();
                                 Map<String, Object> body = new HashMap<>();
-                                Map<String, Object> returns =
-                                        (Map<String, Object>) behaviour.get("returns");
+                                Map<String, Object> returns = (Map) behaviour.get("returns");
                                 if (returns instanceof HashMap && resBody != null && resHeaders != null) {
 
                                     for (String key : returns.keySet()) {
 
-                                        Map<String, Object> _return_ =
-                                                (HashMap<String, Object>) returns.get(key);
+                                        Map _return_ = (Map) returns.get(key);
                                         Object paramValue = null;
                                         String paramKey = null;
                                         String paramType = null;
@@ -300,8 +298,7 @@ public class Behaviours {
                                             paramValue = resBody.get("response");
                                             if (paramValue instanceof HashMap) {
 
-                                                paramValue =
-                                                        ((HashMap<String, Object>) paramValue).get(key);
+                                                paramValue = ((Map) paramValue).get(key);
                                             }
                                             paramKey = key;
                                             body.put(paramKey, paramValue);
@@ -321,13 +318,13 @@ public class Behaviours {
                                                 Object as = purpose;
                                                 if (purpose instanceof HashMap) {
 
-                                                    as = ((HashMap<String, String>) purpose).get("as");
+                                                    as = ((Map) purpose).get("as");
                                                 }
                                                 if (as == null) as = "";
                                                 switch (as.toString()) {
 
                                                     case "parameter":
-                                                        Map<String, Object> param = new HashMap<>();
+                                                        Map param = new HashMap<>();
                                                         param.put("key", key);
                                                         param.put("type", paramType);
                                                         parameters.put(paramKey, param);
@@ -338,27 +335,21 @@ public class Behaviours {
                                                         Map<String, Object> parameter;
                                                         if (purpose instanceof HashMap) {
 
-                                                            __unless__ = ((HashMap<String, Object>)
-                                                                    purpose).get("unless");
-                                                            __for__ = ((HashMap<String, Object>)
-                                                                    purpose).get("for");
+                                                            __unless__ = ((Map) purpose).get("unless");
+                                                            __for__ = ((Map) purpose).get("for");
                                                         }
                                                         if (__unless__ != null) {
 
-                                                            parameter = (HashMap<String, Object>)
-                                                                    parameters.get(paramKey);
+                                                            parameter = (Map) parameters.get(paramKey);
                                                             parameter.put("unless", __unless__);
-                                                            parameter = (HashMap<String, Object>)
-                                                                    param.get(paramKey);
+                                                            parameter = (Map) param.get(paramKey);
                                                             parameter.put("unless", __unless__);
                                                         }
                                                         if (__for__ != null) {
 
-                                                            parameter = (HashMap<String, Object>)
-                                                                    parameters.get(paramKey);
+                                                            parameter = (Map) parameters.get(paramKey);
                                                             parameter.put("for", __for__);
-                                                            parameter = (HashMap<String, Object>)
-                                                                    param.get(paramKey);
+                                                            parameter = (Map) param.get(paramKey);
                                                             parameter.put("for", __for__);
                                                         }
                                                         for (Object otherPurpose :
@@ -366,24 +357,19 @@ public class Behaviours {
 
                                                             if (isEqual(otherPurpose, "constant") ||
                                                                     (otherPurpose instanceof HashMap &&
-                                                                    isEqual(((HashMap<String, Object>)
-                                                                            otherPurpose).get("as"),
+                                                                    isEqual(((Map) otherPurpose).get("as"),
                                                                             "constant"))) {
 
-                                                                parameter = (HashMap<String, Object>)
-                                                                        parameters.get(paramKey);
+                                                                parameter = (Map) parameters.get(paramKey);
                                                                 parameter.put("value", paramValue);
-                                                                parameter = (HashMap<String, Object>)
-                                                                        param.get(paramKey);
+                                                                parameter = (Map) param.get(paramKey);
                                                                 parameter.put("value", paramValue);
                                                                 break;
                                                             }
                                                         }
-                                                        parameter = (HashMap<String, Object>)
-                                                                parameters.get(paramKey);
+                                                        parameter = (Map) parameters.get(paramKey);
                                                         parameter.put("source", true);
-                                                        parameter = (HashMap<String, Object>)
-                                                                param.get(paramKey);
+                                                        parameter = (Map) param.get(paramKey);
                                                         parameter.put("source", true);
                                                         cache.setParameter(param);
                                                         break;
@@ -399,8 +385,7 @@ public class Behaviours {
                                         return;
                                     }
                                 }
-                                cb.callback(resBody != null ? (HashMap<String, Object>)
-                                        resBody.get("response") : null, error);
+                                cb.callback(resBody != null ? (Map) resBody.get("response") : null, error);
                             }
                         });
                         return null;
