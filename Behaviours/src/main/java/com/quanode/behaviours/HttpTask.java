@@ -22,15 +22,15 @@ public class HttpTask {
 
     public AsyncTask<Object, Void, BehaviourCallback> execute (Object... params) {
 
+        String path = (String) params[0];
+        Map<String, Object> headers = (Map<String, Object>) params[1];
+        String method = (String) params[2];
+        Map<String, Object> body = (Map<String, Object>) params[3];
         BehaviourCallback cb = (BehaviourCallback) params[4];
-        HttpURLConnection httpConnection;
+        URL url;
         try {
 
-            String path = (String) params[0];
-            Map<String, Object> headers = (Map<String, Object>) params[1];
-            String method = (String) params[2];
-            Map<String, Object> body = (Map<String, Object>) params[3];
-            httpConnection = getConnection(path, headers, method, body);
+            url = _getURL_.apply(path);
         } catch (Exception ex) {
 
             ex.printStackTrace();
@@ -39,14 +39,13 @@ public class HttpTask {
             return null;
         }
         HttpRequest connection = new HttpRequest();
-        connection.execute(httpConnection, cb);
+        connection.execute(url, headers, method, body, cb);
         return connection;
     }
 
-    private HttpURLConnection getConnection(String path, Map<String, Object> headers, String method,
+    private static HttpURLConnection getConnection(URL url, Map<String, Object> headers, String method,
                                             Map<String, Object> body) throws Exception {
-        URL url;
-        url = _getURL_.apply(path);
+
         HttpURLConnection httpConnection = (HttpURLConnection) url.openConnection();
         httpConnection.setRequestMethod(method);
         if (headers == null) headers = new HashMap<>();
@@ -79,10 +78,15 @@ public class HttpTask {
         @Override
         protected BehaviourCallback doInBackground(Object... params) {
 
-            HttpURLConnection httpConnection = (HttpURLConnection) params[0];;
-            BehaviourCallback cb = (BehaviourCallback) params[1];
+            HttpURLConnection httpConnection = null;;
+            BehaviourCallback cb = (BehaviourCallback) params[4];
             try {
 
+                URL url = (URL) params[0];
+                Map<String, Object> reqHeaders = (Map<String, Object>) params[1];
+                String reqMethod = (String) params[2];
+                Map<String, Object> reqBody = (Map<String, Object>) params[3];
+                httpConnection = getConnection(url, reqHeaders, reqMethod, reqBody);
                 InputStream in = httpConnection.getResponseCode() == HttpURLConnection.HTTP_OK ?
                         httpConnection.getInputStream() : httpConnection.getErrorStream();
                 StringBuilder sb = new StringBuilder();
