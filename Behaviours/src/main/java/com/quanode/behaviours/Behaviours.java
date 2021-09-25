@@ -5,8 +5,15 @@
 package com.quanode.behaviours;
 
 import android.content.ContextWrapper;
+import android.util.Log;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import io.socket.client.IO;
+import io.socket.client.Manager;
+import io.socket.client.Socket;
+import io.socket.emitter.Emitter;
+import io.socket.engineio.client.transports.WebSocket;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -113,7 +120,7 @@ public class Behaviours {
     }
 
     public Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>,
-            Void> getBehaviour(final String behaviourName) throws Exception {
+            VoidFunctionVoid> getBehaviour(final String behaviourName) throws Exception {
 
         if (behaviourName == null) {
 
@@ -128,11 +135,13 @@ public class Behaviours {
 
             throw new Exception("This behaviour does not exist");
         }
-        return new Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>, Void>() {
+        return new Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>,
+                VoidFunctionVoid>() {
 
             @Override
-            public Void apply(Map<String, Object> behaviourData, final BehaviourCallback<Map<String,
-                    Object>> cb) throws Exception {
+            public VoidFunctionVoid apply(Map<String, Object> behaviourData,
+                                          final BehaviourCallback<Map<String,
+                                                  Object>> cb) throws Exception {
 
                 if (behaviourData == null) {
 
@@ -231,11 +240,12 @@ public class Behaviours {
                     }
                 }
                 final String _url_ = url;
+                final Socket[] sockets = {null};
                 Map request = new HashMap<>();
-                Function<String, Void, Void> _request_ = new Function<String, Void, Void>() {
+                VoidFunction _request_ = new VoidFunction<String>() {
 
                     @Override
-                    public Void apply(String signature, Void __) {
+                    public void apply(String signature) {
 
                         if (signature != null) {
 
@@ -260,9 +270,8 @@ public class Behaviours {
 
                                     try {
 
-                                        Function<String, Void, Void> __request__ =
-                                                (Function<String, Void, Void>) request.get("request");
-                                        __request__.apply(resBody.get("signature").toString(), null);
+                                        VoidFunction __request__ = (VoidFunction) request.get("request");
+                                        __request__.apply(resBody.get("signature").toString());
                                     } catch (Exception ex) {
 
                                         BehaviourError e =
@@ -270,6 +279,65 @@ public class Behaviours {
                                         cb.callback(null, e);
                                     }
                                     return;
+                                }
+                                ArrayList<String> events = null;
+                                String events_token = null;
+                                if (resBody != null && resBody.get("events_token") != null &&
+                                        resBody.get("events") instanceof ArrayList) {
+
+                                    events = (ArrayList) resBody.get("events");
+                                    events_token = resBody.get("events_token").toString();
+                                }
+                                if (events_token != null && events != null) {
+
+                                    String socketPath = behaviour.get("prefix") + "/events";
+                                    URI socketURI = null;
+                                    try {
+
+                                        socketURI = httpTask._getURL_.apply(socketPath).toURI();
+                                    } catch (Exception e) {
+
+                                        e.printStackTrace();
+                                    }
+                                    if (socketURI != null) {
+
+                                        Map<String, String> auth = new HashMap();
+                                        auth.put("token", events_token);
+                                        auth.put("behaviour", behaviourName);
+                                        IO.Options options = IO.Options.builder().setPath(socketPath)
+                                                .setTransports(new String[]{WebSocket.NAME})
+                                                .setAuth(auth).build();
+                                        sockets[0] = IO.socket(socketURI, options);
+                                        final Socket socket = sockets[0];
+                                        socket.io().on(Manager.EVENT_ERROR, new Emitter.Listener() {
+
+                                            @Override
+                                            public void call(Object... args) {
+
+                                                Log.d("Socket Error", args[0].toString());
+                                            }
+                                        });
+                                        ArrayList<String> _events_ = events;
+                                        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+
+                                            @Override
+                                            public void call(Object... args) {
+
+                                                for (String event : _events_) {
+
+                                                    socket.emit("join " + behaviourName, event);
+                                                }
+                                            }
+                                        });
+                                        socket.on(behaviourName, new Emitter.Listener() {
+
+                                            @Override
+                                            public void call(Object... args) {
+
+                                                cb.callback((Map) ((Map) args[0]).get("response"), null);
+                                            }
+                                        });
+                                    }
                                 }
                                 Map<String, Object> headers = new HashMap<>();
                                 Map<String, Object> body = new HashMap<>();
@@ -388,12 +456,18 @@ public class Behaviours {
                                 cb.callback(resBody != null ? (Map) resBody.get("response") : null, error);
                             }
                         });
-                        return null;
                     }
                 };
                 request.put("request", _request_);
-                _request_.apply(null, null);
-                return null;
+                _request_.apply(null);
+                return new VoidFunctionVoid() {
+
+                    @Override
+                    public void apply() throws Exception {
+
+                        if (sockets[0] != null) sockets[0].disconnect();
+                    }
+                };
             }
         };
     }
