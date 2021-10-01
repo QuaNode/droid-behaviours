@@ -328,11 +328,10 @@ public class Behaviours {
                                             List<HttpCookie> cookies = HttpCookie.parse(cookie);
                                             for (HttpCookie httpCookie: cookies) {
 
-                                                if (httpCookie.getName() == "behaviours.sid") {
+                                                if (httpCookie.getName().equals("behaviours.sid")) {
 
-                                                    String cookieHeader =
-                                                            "behaviours.sid=" + httpCookie.getValue();
-                                                    List headerList = singletonList(cookieHeader);
+                                                    List headerList =
+                                                            singletonList(httpCookie.toString());
                                                     extraHeaders.put("Cookie", headerList);
                                                     break;
                                                 }
