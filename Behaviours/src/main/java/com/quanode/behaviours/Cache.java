@@ -24,7 +24,7 @@ public class Cache {
         if (data.get(key) != null) return data.get(key);
         if (parameter.get("value") != null) return parameter.get("value") instanceof Function ?
                 (((Function<String, Map<String, Object>, String>)
-                        parameter.get("value"))).apply(name, data) : (String) parameter.get("value");
+                        parameter.get("value"))).call(name, data) : (String) parameter.get("value");
         else if (isEqual(parameter.get("source"), true)) {
 
             if (getParameter().get(key) instanceof HashMap) {

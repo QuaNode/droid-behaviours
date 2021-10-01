@@ -45,19 +45,26 @@ public class Behaviours {
     public Behaviours(final String baseUrl, Map<String, Object> defaults, ContextWrapper context,
                       BehaviourErrorCallback cb) {
 
-        this(new GETURLFunction() {
+        this(new URLBuilder() {
 
             @Override
-            public URL apply(String path) throws MalformedURLException, URISyntaxException {
+            public URL concat(String path) throws MalformedURLException, URISyntaxException {
 
                 URL url = new URL(baseUrl + path);
+                url.toURI();
+                return url;
+            }
+
+            public URL split(String split, String path) throws MalformedURLException, URISyntaxException {
+
+                URL url = new URL(baseUrl.split(split)[0] + path);
                 url.toURI();
                 return url;
             }
         }, defaults, context, cb);
     }
 
-    public Behaviours(GETURLFunction getURL, Map<String, Object> defaults, ContextWrapper context,
+    public Behaviours(URLBuilder getURL, Map<String, Object> defaults, ContextWrapper context,
                       BehaviourErrorCallback cb) {
 
         cache = new Cache(context);
@@ -71,18 +78,18 @@ public class Behaviours {
                 new BehaviourCallback<Map<String, Object>>() {
 
             @Override
-            public void callback(Map<String, Object> response, BehaviourError e) {
+            public void call(Map<String, Object> response, BehaviourError e) {
 
                 if (e != null) {
 
-                    if (cb != null) cb.callback(e);
+                    if (cb != null) cb.call(e);
                 } else {
 
                     if (response == null) {
 
                         Exception exception = new Exception("Failed to initialize Behaviours");
                         if (cb != null)
-                            cb.callback(new BehaviourError(exception.getMessage(), 0, exception));
+                            cb.call(new BehaviourError(exception.getMessage(), 0, exception));
                         return;
                     }
                     behavioursBody = (Map) response.get("response");
@@ -92,7 +99,7 @@ public class Behaviours {
 
                         behavioursHeaders.put("Content-Type", headers.get("Content-Type"));
                     }
-                    for (Callback cb: callbacks) cb.callback();
+                    for (Callback cb: callbacks) cb.call();
                     errorCallback = cb;
                     _defaults_ = defaults;
                 }
@@ -102,7 +109,7 @@ public class Behaviours {
 
     public URL getBaseURL() throws IOException, URISyntaxException {
 
-        return httpTask._getURL_.apply("");
+        return httpTask.baseURL.concat("");
     }
 
     public void onReady(Callback cb) {
@@ -111,7 +118,7 @@ public class Behaviours {
         if (behavioursBody == null) {
 
             callbacks.add(cb);
-        } else cb.callback();
+        } else cb.call();
     }
 
     private boolean isEqual(Object o1, Object o2) {
@@ -120,7 +127,7 @@ public class Behaviours {
     }
 
     public Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>,
-            VoidFunctionVoid> getBehaviour(final String behaviourName) throws Exception {
+            BehaviourCancelFunction> getBehaviour(final String behaviourName) throws Exception {
 
         if (behaviourName == null) {
 
@@ -136,11 +143,11 @@ public class Behaviours {
             throw new Exception("This behaviour does not exist");
         }
         return new Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>,
-                VoidFunctionVoid>() {
+                BehaviourCancelFunction>() {
 
             @Override
-            public VoidFunctionVoid apply(Map<String, Object> behaviourData,
-                                          final BehaviourCallback<Map<String,
+            public BehaviourCancelFunction call(Map<String, Object> behaviourData,
+                                                final BehaviourCallback<Map<String,
                                                   Object>> cb) throws Exception {
 
                 if (behaviourData == null) {
@@ -151,7 +158,7 @@ public class Behaviours {
                 if (_defaults_ != null) parameters.putAll(_defaults_);
                 final Map<String, Object> params = new HashMap<>();
                 Map<String, Object> _params_ = (Map) behaviour.get("parameters");
-                if (_params_ instanceof HashMap && _params_ != null) {
+                if (_params_ instanceof HashMap) {
 
                     for (final String key : _params_.keySet()) {
 
@@ -242,10 +249,10 @@ public class Behaviours {
                 final String _url_ = url;
                 final Socket[] sockets = {null};
                 Map request = new HashMap<>();
-                VoidFunction _request_ = new VoidFunction<String>() {
+                Function.Void _request_ = new Function.Void<String>() {
 
                     @Override
-                    public void apply(String signature) {
+                    public void call(String signature) {
 
                         if (signature != null) {
 
@@ -255,10 +262,10 @@ public class Behaviours {
                                 new BehaviourCallback<Map<String, Object>>() {
 
                             @Override
-                            public void callback(Map<String, Object> response, BehaviourError error) {
+                            public void call(Map<String, Object> response, BehaviourError error) {
 
                                 if (error != null && errorCallback != null)
-                                    errorCallback.callback(error);
+                                    errorCallback.call(error);
                                 Map resBody = null;
                                 Map resHeaders = null;
                                 if (response != null) {
@@ -270,13 +277,13 @@ public class Behaviours {
 
                                     try {
 
-                                        VoidFunction __request__ = (VoidFunction) request.get("request");
-                                        __request__.apply(resBody.get("signature").toString());
+                                        Function.Void __request__ = (Function.Void) request.get("request");
+                                        __request__.call(resBody.get("signature").toString());
                                     } catch (Exception ex) {
 
                                         BehaviourError e =
                                                 new BehaviourError(ex.getMessage(), -1, ex);
-                                        cb.callback(null, e);
+                                        cb.call(null, e);
                                     }
                                     return;
                                 }
@@ -290,11 +297,17 @@ public class Behaviours {
                                 }
                                 if (events_token != null && events != null) {
 
-                                    String socketPath = behaviour.get("prefix") + "/events";
+                                    String prefix = "";
+                                    if (behaviour.get("prefix") instanceof String) {
+
+                                        prefix = (String) behaviour.get("prefix");
+                                    }
+                                    String socketPath = prefix + "/events";
                                     URI socketURI = null;
                                     try {
 
-                                        socketURI = httpTask._getURL_.apply(socketPath).toURI();
+                                        socketURI =
+                                                httpTask.baseURL.split(prefix, socketPath).toURI();
                                     } catch (Exception e) {
 
                                         e.printStackTrace();
@@ -314,7 +327,10 @@ public class Behaviours {
                                             @Override
                                             public void call(Object... args) {
 
-                                                Log.d("Socket Error", args[0].toString());
+                                                if (args != null && args[0] != null) {
+
+                                                    Log.d("Socket Error", args[0].toString());
+                                                }
                                             }
                                         });
                                         ArrayList<String> _events_ = events;
@@ -334,7 +350,23 @@ public class Behaviours {
                                             @Override
                                             public void call(Object... args) {
 
-                                                cb.callback((Map) ((Map) args[0]).get("response"), null);
+                                                if (args != null && args[0] instanceof Map) {
+
+                                                    Map arg = (Map) args[0];
+                                                    if (arg.get("message") instanceof String) {
+
+                                                        String message = (String) arg.get("message");
+                                                        BehaviourError err =
+                                                                new BehaviourError(message);
+                                                        if (errorCallback != null)
+                                                            errorCallback.call(err);
+                                                    }
+                                                    if (arg.get("response") instanceof Map) {
+
+                                                        Map _response_ = (Map) arg.get("response");
+                                                        cb.call(_response_, null);
+                                                    }
+                                                }
                                             }
                                         });
                                     }
@@ -449,21 +481,21 @@ public class Behaviours {
 
                                         if (body.isEmpty()) body.put("data", resBody.get("response"));
                                         headers.putAll(body);
-                                        cb.callback(headers, error);
+                                        cb.call(headers, error);
                                         return;
                                     }
                                 }
-                                cb.callback(resBody != null ? (Map) resBody.get("response") : null, error);
+                                cb.call(resBody != null ? (Map) resBody.get("response") : null, error);
                             }
                         });
                     }
                 };
                 request.put("request", _request_);
-                _request_.apply(null);
-                return new VoidFunctionVoid() {
+                _request_.call(null);
+                return new BehaviourCancelFunction() {
 
                     @Override
-                    public void apply() throws Exception {
+                    public void call() throws Exception {
 
                         if (sockets[0] != null) sockets[0].disconnect();
                     }

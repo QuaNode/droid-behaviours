@@ -13,11 +13,11 @@ import java.util.Map;
 
 public class HttpTask {
 
-    public GETURLFunction _getURL_;
+    public URLBuilder baseURL;
 
-    public HttpTask(GETURLFunction getURL) {
+    public HttpTask(URLBuilder baseURLBuilder) {
 
-        _getURL_ = getURL;
+        baseURL = baseURLBuilder;
     }
 
     public AsyncTask<Object, Void, BehaviourCallback> execute (Object... params) {
@@ -30,12 +30,12 @@ public class HttpTask {
         URL url;
         try {
 
-            url = _getURL_.apply(path);
+            url = baseURL.concat(path);
         } catch (Exception ex) {
 
             ex.printStackTrace();
             BehaviourError error = new BehaviourError(ex.getMessage(), -1, ex);
-            cb.callback(null, error);
+            cb.call(null, error);
             return null;
         }
         HttpRequest connection = new HttpRequest();
@@ -131,7 +131,7 @@ public class HttpTask {
             super.onPostExecute(cb);
             if (error == null && exception != null)
                 error = new BehaviourError(exception.getMessage(), -1, exception);
-            cb.callback(response, error);
+            cb.call(response, error);
         }
     }
 }

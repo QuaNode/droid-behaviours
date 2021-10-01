@@ -6,6 +6,11 @@ public class BehaviourError extends Error {
     String message;
     private Exception exception;
 
+    public BehaviourError(String message) {
+
+        this(message, -1, null);
+    }
+
     public BehaviourError(String message, int code, Exception exception) {
 
         super(message);
