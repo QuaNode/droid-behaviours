@@ -6,7 +6,9 @@ package com.quanode.behaviours;
 
 import static java.util.Collections.singletonList;
 import android.content.ContextWrapper;
+import android.os.Looper;
 import android.util.Log;
+import android.os.Handler;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.io.IOException;
@@ -387,19 +389,43 @@ public class Behaviours {
                                                         e.printStackTrace();
                                                     }
                                                     if (arg == null) return;
+                                                    if (arg.get("emitter_id") instanceof String) {
+
+                                                        String emitter_id =
+                                                                (String) arg.get("emitter_id");
+                                                        if (emitter_id.equals(socket.id())) return;
+                                                    }
+                                                    String message = null;
+                                                    Map _response_ = null;
                                                     if (arg.get("message") instanceof String) {
 
-                                                        String message = (String) arg.get("message");
-                                                        BehaviourError err =
-                                                                new BehaviourError(message);
-                                                        if (errorCallback != null)
-                                                            errorCallback.call(err);
+                                                        message = (String) arg.get("message");
                                                     }
                                                     if (arg.get("response") instanceof Map) {
 
-                                                        Map _response_ = (Map) arg.get("response");
-                                                        cb.call(_response_, null);
+                                                        _response_ = (Map) arg.get("response");
                                                     }
+                                                    final String _message_ = message;
+                                                    final Map __response__ = _response_;
+                                                    Runnable runnable = new Runnable() {
+
+                                                        @Override
+                                                        public void run() {
+
+                                                            if (_message_ != null) {
+
+                                                                BehaviourError err =
+                                                                        new BehaviourError(_message_);
+                                                                if (errorCallback != null)
+                                                                    errorCallback.call(err);
+                                                            }
+                                                            if (__response__ != null) {
+
+                                                                cb.call(__response__, null);
+                                                            }
+                                                        }
+                                                    };
+                                                    new Handler(Looper.getMainLooper()).post(runnable);
                                                 }
                                             }
                                         });
