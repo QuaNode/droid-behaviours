@@ -4,9 +4,11 @@
 
 package com.quanode.behaviours;
 
+import static java.util.Collections.singletonList;
 import android.content.ContextWrapper;
 import android.util.Log;
 import java.io.IOException;
+import java.net.HttpCookie;
 import java.net.MalformedURLException;
 import io.socket.client.IO;
 import io.socket.client.Manager;
@@ -20,6 +22,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class Behaviours {
@@ -289,7 +292,8 @@ public class Behaviours {
                                 }
                                 ArrayList<String> events = null;
                                 String events_token = null;
-                                if (resBody != null && resBody.get("events_token") != null &&
+                                if (resBody != null && resHeaders != null &&
+                                        resBody.get("events_token") != null &&
                                         resBody.get("events") instanceof ArrayList) {
 
                                     events = (ArrayList) resBody.get("events");
@@ -317,22 +321,43 @@ public class Behaviours {
                                         Map<String, String> auth = new HashMap();
                                         auth.put("token", events_token);
                                         auth.put("behaviour", behaviourName);
-                                        IO.Options options = IO.Options.builder().setPath(socketPath)
-                                                .setTransports(new String[]{WebSocket.NAME})
-                                                .setAuth(auth).build();
-                                        sockets[0] = IO.socket(socketURI, options);
-                                        final Socket socket = sockets[0];
-                                        socket.on(Socket.EVENT_CONNECT_ERROR, new Emitter.Listener() {
+                                        Map<String, List<String>> extraHeaders = new HashMap();
+                                        if (resHeaders.get("Set-Cookie") instanceof String) {
 
-                                            @Override
-                                            public void call(Object... args) {
+                                            String cookie = (String) resHeaders.get("Set-Cookie");
+                                            List<HttpCookie> cookies = HttpCookie.parse(cookie);
+                                            for (HttpCookie httpCookie: cookies) {
 
-                                                if (args != null && args[0] != null) {
+                                                if (httpCookie.getName() == "behaviours.sid") {
 
-                                                    Log.d("Socket Error", args[0].toString());
+                                                    String cookieHeader =
+                                                            "behaviours.sid=" + httpCookie.getValue();
+                                                    List headerList = singletonList(cookieHeader);
+                                                    extraHeaders.put("Cookie", headerList);
+                                                    break;
                                                 }
                                             }
-                                        });
+                                        }
+                                        IO.Options options = IO.Options.builder().setPath(socketPath)
+                                                .setTransports(new String[]{WebSocket.NAME})
+                                                .setAuth(auth).setExtraHeaders(extraHeaders).build();
+                                        sockets[0] = IO.socket(socketURI, options);
+                                        final Socket socket = sockets[0];
+                                        for (String EVENT: new String[]{Manager.EVENT_ERROR,
+                                                Manager.EVENT_CLOSE}) {
+
+                                            socket.io().on(EVENT, new Emitter.Listener() {
+
+                                                @Override
+                                                public void call(Object... args) {
+
+                                                    if (args != null && args[0] != null) {
+
+                                                        Log.d("Behaviours: ", args[0].toString());
+                                                    }
+                                                }
+                                            });
+                                        }
                                         ArrayList<String> _events_ = events;
                                         socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
 
@@ -375,7 +400,7 @@ public class Behaviours {
                                 Map<String, Object> headers = new HashMap<>();
                                 Map<String, Object> body = new HashMap<>();
                                 Map<String, Object> returns = (Map) behaviour.get("returns");
-                                if (returns instanceof HashMap && resBody != null && resHeaders != null) {
+                                if (resBody != null && resHeaders != null && returns instanceof HashMap) {
 
                                     for (String key : returns.keySet()) {
 
