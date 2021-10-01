@@ -7,6 +7,8 @@ package com.quanode.behaviours;
 import static java.util.Collections.singletonList;
 import android.content.ContextWrapper;
 import android.util.Log;
+import org.json.JSONException;
+import org.json.JSONObject;
 import java.io.IOException;
 import java.net.HttpCookie;
 import java.net.MalformedURLException;
@@ -374,9 +376,17 @@ public class Behaviours {
                                             @Override
                                             public void call(Object... args) {
 
-                                                if (args != null && args[0] instanceof Map) {
+                                                if (args != null && args[0] instanceof JSONObject) {
 
-                                                    Map arg = (Map) args[0];
+                                                    Map arg = null;
+                                                    try {
+
+                                                        arg = JSONMap.toMap((JSONObject) args[0]);
+                                                    } catch (JSONException e) {
+
+                                                        e.printStackTrace();
+                                                    }
+                                                    if (arg == null) return;
                                                     if (arg.get("message") instanceof String) {
 
                                                         String message = (String) arg.get("message");
