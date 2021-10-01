@@ -322,7 +322,7 @@ public class Behaviours {
                                                 .setAuth(auth).build();
                                         sockets[0] = IO.socket(socketURI, options);
                                         final Socket socket = sockets[0];
-                                        socket.io().on(Manager.EVENT_ERROR, new Emitter.Listener() {
+                                        socket.on(Socket.EVENT_CONNECT_ERROR, new Emitter.Listener() {
 
                                             @Override
                                             public void call(Object... args) {
@@ -369,6 +369,7 @@ public class Behaviours {
                                                 }
                                             }
                                         });
+                                        socket.connect();
                                     }
                                 }
                                 Map<String, Object> headers = new HashMap<>();
