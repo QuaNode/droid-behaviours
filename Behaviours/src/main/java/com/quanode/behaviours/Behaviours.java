@@ -101,10 +101,23 @@ public class Behaviours {
                     }
                     behavioursBody = (Map) response.get("response");
                     behavioursHeaders = new HashMap();
-                    Map<String, String> headers =  (Map) response.get("headers");
-                    if (headers.get("Content-Type") != null) {
+                    Map headers =  (Map) response.get("headers");
+                    if (headers.get("Content-Type") instanceof String) {
 
-                        behavioursHeaders.put("Content-Type", headers.get("Content-Type"));
+                        behavioursHeaders.put("Content-Type", (String) headers.get("Content-Type"));
+                    }
+                    if (headers.get("Set-Cookie") instanceof String) {
+
+                        String cookie = (String) headers.get("Set-Cookie");
+                        List<HttpCookie> cookies = HttpCookie.parse(cookie);
+                        for (HttpCookie httpCookie: cookies) {
+
+                            if (httpCookie.getName().equals("behaviours.sid")) {
+
+                                behavioursHeaders.put("Cookie", httpCookie.toString());
+                                break;
+                            }
+                        }
                     }
                     for (Callback cb: callbacks) cb.call();
                     errorCallback = cb;
@@ -296,8 +309,7 @@ public class Behaviours {
                                 }
                                 ArrayList<String> events = null;
                                 String events_token = null;
-                                if (resBody != null && resHeaders != null &&
-                                        resBody.get("events_token") != null &&
+                                if (resBody != null && resBody.get("events_token") != null &&
                                         resBody.get("events") instanceof ArrayList) {
 
                                     events = (ArrayList) resBody.get("events");
@@ -326,20 +338,11 @@ public class Behaviours {
                                         auth.put("token", events_token);
                                         auth.put("behaviour", behaviourName);
                                         Map<String, List<String>> extraHeaders = new HashMap();
-                                        if (resHeaders.get("Set-Cookie") instanceof String) {
+                                        if (behavioursHeaders.get("Cookie") != null) {
 
-                                            String cookie = (String) resHeaders.get("Set-Cookie");
-                                            List<HttpCookie> cookies = HttpCookie.parse(cookie);
-                                            for (HttpCookie httpCookie: cookies) {
-
-                                                if (httpCookie.getName().equals("behaviours.sid")) {
-
-                                                    List headerList =
-                                                            singletonList(httpCookie.toString());
-                                                    extraHeaders.put("Cookie", headerList);
-                                                    break;
-                                                }
-                                            }
+                                            String cookie = behavioursHeaders.get("Cookie");
+                                            List headerList = singletonList(cookie);
+                                            extraHeaders.put("Cookie", headerList);
                                         }
                                         IO.Options options = IO.Options.builder().setPath(socketPath)
                                                 .setTransports(new String[]{WebSocket.NAME})
