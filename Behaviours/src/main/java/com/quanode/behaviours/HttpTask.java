@@ -1,6 +1,9 @@
 package com.quanode.behaviours;
 
-import android.os.AsyncTask;
+import android.os.Binder;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Process;
 import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -8,8 +11,171 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+abstract class AsyncTask<Params, Result> {
+
+    private static final int CORE_POOL_SIZE = 1;
+    private static final int MAXIMUM_POOL_SIZE = 20;
+    private static final int BACKUP_POOL_SIZE = 5;
+    private static final int KEEP_ALIVE_SECONDS = 3;
+
+    private static final ThreadFactory sThreadFactory = new ThreadFactory() {
+
+        private final AtomicInteger mCount = new AtomicInteger(1);
+        public Thread newThread(Runnable r) {
+
+            return new Thread(r, "AsyncTask #" + mCount.getAndIncrement());
+        }
+    };
+
+    public static final Executor THREAD_POOL_EXECUTOR;
+
+    private static ThreadPoolExecutor sBackupExecutor;
+
+    private static final RejectedExecutionHandler sRunOnSerialPolicy = new RejectedExecutionHandler() {
+
+                public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+
+                    synchronized (this) {
+
+                        if (sBackupExecutor == null) {
+
+                            LinkedBlockingQueue<Runnable> sBackupExecutorQueue = new LinkedBlockingQueue<Runnable>();
+                            sBackupExecutor = new ThreadPoolExecutor(BACKUP_POOL_SIZE, BACKUP_POOL_SIZE, KEEP_ALIVE_SECONDS,
+                                    TimeUnit.SECONDS, sBackupExecutorQueue, sThreadFactory);
+                            sBackupExecutor.allowCoreThreadTimeOut(true);
+                        }
+                    }
+                    sBackupExecutor.execute(r);
+                }
+            };
+
+    static {
+
+        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(CORE_POOL_SIZE, MAXIMUM_POOL_SIZE, KEEP_ALIVE_SECONDS,
+                TimeUnit.SECONDS, new SynchronousQueue<Runnable>(), sThreadFactory);
+        threadPoolExecutor.setRejectedExecutionHandler(sRunOnSerialPolicy);
+        THREAD_POOL_EXECUTOR = threadPoolExecutor;
+    }
+
+    private static class SerialExecutor implements Executor {
+
+        final ArrayDeque<Runnable> mTasks = new ArrayDeque<Runnable>();
+
+        Runnable mActive;
+
+        public synchronized void execute(final Runnable r) {
+
+            mTasks.offer(new Runnable() {
+
+                public void run() {
+
+                    try {
+
+                        r.run();
+                    } finally {
+
+                        scheduleNext();
+                    }
+                }
+            });
+            if (mActive == null) {
+
+                scheduleNext();
+            }
+        }
+
+        protected synchronized void scheduleNext() {
+
+            if ((mActive = mTasks.poll()) != null) {
+
+                THREAD_POOL_EXECUTOR.execute(mActive);
+            }
+        }
+    }
+
+    public static final Executor SERIAL_EXECUTOR = new SerialExecutor();
+
+    private static volatile Executor sDefaultExecutor = SERIAL_EXECUTOR;
+
+    private static Handler mHandler;
+
+    private static Handler getMainHandler() {
+
+        synchronized (android.os.AsyncTask.class) {
+
+            if (mHandler == null) {
+
+                mHandler = new Handler(Looper.getMainLooper());
+            }
+            return mHandler;
+        }
+    }
+
+    public AsyncTask() {
+
+        this((Looper) null);
+    }
+
+    public AsyncTask(Handler handler) {
+
+        this(handler != null ? handler.getLooper() : null);
+    }
+
+    public AsyncTask(Looper callbackLooper) {
+
+        if (callbackLooper == null || callbackLooper == Looper.getMainLooper()) {
+
+            mHandler = getMainHandler();
+        } else  mHandler = new Handler(callbackLooper);
+    }
+
+    protected abstract Result doInBackground(Params... params);
+
+    protected void onPostExecute(Result result) { }
+
+    public final AsyncTask<Params, Result> execute(Params... params) {
+
+        sDefaultExecutor.execute(new Runnable() {
+
+            Result result = null;
+
+            @Override
+            public void run() {
+
+                try {
+
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                    result = doInBackground(params);
+                    Binder.flushPendingCommands();
+                } catch (Throwable tr) {
+
+                    throw tr;
+                }
+                mHandler.post(new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        onPostExecute(result);
+                    }
+                });
+            }
+        });
+        return this;
+    }
+}
 
 public class HttpTask {
 
@@ -20,7 +186,7 @@ public class HttpTask {
         baseURL = baseURLBuilder;
     }
 
-    public AsyncTask<Object, Void, BehaviourCallback> execute (Object... params) {
+    public AsyncTask<Object, BehaviourCallback> execute (Object... params) {
 
         String path = (String) params[0];
         Map<String, Object> headers = (Map<String, Object>) params[1];
@@ -49,8 +215,10 @@ public class HttpTask {
         HttpURLConnection httpConnection = (HttpURLConnection) url.openConnection();
         httpConnection.setRequestMethod(method);
         if (headers == null) headers = new HashMap<>();
-        if (headers.get("Content-Type") == null)
+        if (headers.get("Content-Type") == null) {
+
             headers.put("Content-Type", "application/json");
+        }
         if (!headers.isEmpty()) {
 
             for (String key : headers.keySet()) {
@@ -69,7 +237,7 @@ public class HttpTask {
         return httpConnection;
     }
 
-    private static class HttpRequest extends AsyncTask<Object, Void, BehaviourCallback> {
+    private static class HttpRequest extends AsyncTask<Object, BehaviourCallback> {
 
         HashMap<String, Object> response = null;
         BehaviourError error;
@@ -109,9 +277,10 @@ public class HttpTask {
 
                     exception = new Exception(httpConnection.getResponseMessage());
                     String errorMessage = exception.getMessage();
-                    if (response.get("response") instanceof Map &&
-                            ((Map) response.get("response")).get("message") != null)
+                    if (response.get("response") instanceof Map && ((Map) response.get("response")).get("message") != null) {
+
                         errorMessage = (String) ((Map) response.get("response")).get("message");
+                    }
                     error = new BehaviourError(errorMessage, httpConnection.getResponseCode(), exception);
                 }
             } catch (Exception ex) {
@@ -129,8 +298,10 @@ public class HttpTask {
         protected void onPostExecute(BehaviourCallback cb) {
 
             super.onPostExecute(cb);
-            if (error == null && exception != null)
+            if (error == null && exception != null) {
+
                 error = new BehaviourError(exception.getMessage(), -1, exception);
+            }
             cb.call(response, error);
         }
     }

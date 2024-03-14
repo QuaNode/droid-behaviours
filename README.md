@@ -2,5 +2,5 @@
 Android client for Behaviours 
 
 ```
-implementation 'com.quanode:behaviours:1.4'
+implementation 'com.quanode:behaviours:1.5'
 ```
