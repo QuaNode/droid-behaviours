@@ -10,8 +10,8 @@ android {
     defaultConfig {
         minSdkVersion 19
         targetSdkVersion 31
-        versionCode 5
-        versionName "1.4"
+        versionCode 6
+        versionName "1.5"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
     }
@@ -119,10 +119,10 @@ publishing {
                     developerConnection = 'git+https://github.com/QuaNode/droid-behaviours.git'
                     url = 'https://github.com/QuaNode/droid-behaviours'
                 }
-//                signing {
-//                    sign publishing.publications.release
-//                    sign configurations.archives
-//                }
+                signing {
+                    sign publishing.publications.release
+                    sign configurations.archives
+                }
             }
         }
     }

@@ -89,14 +89,16 @@ public class Behaviours {
 
                 if (e != null) {
 
-                    if (cb != null) cb.call(e);
+                    if (cb != null) cb.call(e, null);
                 } else {
 
                     if (response == null) {
 
                         Exception exception = new Exception("Failed to initialize Behaviours");
-                        if (cb != null)
-                            cb.call(new BehaviourError(exception.getMessage(), 0, exception));
+                        if (cb != null) {
+
+                            cb.call(new BehaviourError(exception.getMessage(), 0, exception), null);
+                        }
                         return;
                     }
                     behavioursBody = (Map) response.get("response");
@@ -108,15 +110,10 @@ public class Behaviours {
                     }
                     if (headers.get("Set-Cookie") instanceof String) {
 
-                        String cookie = (String) headers.get("Set-Cookie");
-                        List<HttpCookie> cookies = HttpCookie.parse(cookie);
-                        for (HttpCookie httpCookie: cookies) {
+                        String cookie = getCookie(headers);
+                        if (cookie != null) {
 
-                            if (httpCookie.getName().equals("behaviours.sid")) {
-
-                                behavioursHeaders.put("Cookie", httpCookie.toString());
-                                break;
-                            }
+                            behavioursHeaders.put("Cookie", cookie);
                         }
                     }
                     for (Callback cb: callbacks) cb.call();
@@ -146,6 +143,20 @@ public class Behaviours {
         return o1 != null && o1.equals(o2);
     }
 
+    private String getCookie(Map headers) {
+
+        String cookie = (String) headers.get("Set-Cookie");
+        List<HttpCookie> cookies = HttpCookie.parse(cookie);
+        for (HttpCookie httpCookie: cookies) {
+
+            if (httpCookie.getName().equals("behaviours.sid")) {
+
+                return  httpCookie.toString();
+            }
+        }
+        return null;
+    }
+
     public Function<Map<String, Object>, BehaviourCallback<Map<String, Object>>,
             BehaviourCancelFunction> getBehaviour(final String behaviourName) throws Exception {
 
@@ -168,7 +179,7 @@ public class Behaviours {
             @Override
             public BehaviourCancelFunction call(Map<String, Object> behaviourData,
                                                 final BehaviourCallback<Map<String,
-                                                  Object>> cb) throws Exception {
+                                                        Object>> cb) throws Exception {
 
                 if (behaviourData == null) {
 
@@ -184,6 +195,10 @@ public class Behaviours {
 
                         final Object value = _params_.get(key);
                         params.put(key, parameters.get(key) != null ? parameters.get(key) : value);
+                        if (value instanceof Map && ((Map) value).get("type") != null) {
+
+                            ((Map) params.get(key)).put("type", ((Map) value).get("type"));
+                        }
                     }
                 }
                 Map<String, Object> headers = new HashMap<>();
@@ -284,8 +299,11 @@ public class Behaviours {
                             @Override
                             public void call(Map<String, Object> response, BehaviourError error) {
 
-                                if (error != null && errorCallback != null)
-                                    errorCallback.call(error);
+                                if (error != null && errorCallback != null &&
+                                        errorCallback.call(error, behaviourName) == false) {
+
+                                    error = null;
+                                }
                                 Map resBody = null;
                                 Map resHeaders = null;
                                 if (response != null) {
@@ -326,8 +344,13 @@ public class Behaviours {
                                     URI socketURI = null;
                                     try {
 
-                                        socketURI =
-                                                httpTask.baseURL.split(prefix, socketPath).toURI();
+                                        if (prefix.length() > 0) {
+
+                                            socketURI = httpTask.baseURL.split(prefix, socketPath).toURI();
+                                        } else {
+
+                                            socketURI = httpTask.baseURL.concat(socketPath).toURI();
+                                        }
                                     } catch (Exception e) {
 
                                         e.printStackTrace();
@@ -338,9 +361,20 @@ public class Behaviours {
                                         auth.put("token", events_token);
                                         auth.put("behaviour", behaviourName);
                                         Map<String, List<String>> extraHeaders = new HashMap();
+                                        String cookie = null;
                                         if (behavioursHeaders.get("Cookie") != null) {
 
-                                            String cookie = behavioursHeaders.get("Cookie");
+                                            cookie = behavioursHeaders.get("Cookie");
+                                        } else if (resHeaders.get("Set-Cookie") instanceof String) {
+
+                                            cookie = getCookie(resHeaders);
+                                            if (cookie != null) {
+
+                                                behavioursHeaders.put("Cookie", cookie);
+                                            }
+                                        }
+                                        if (cookie != null) {
+
                                             List headerList = singletonList(cookie);
                                             extraHeaders.put("Cookie", headerList);
                                         }
@@ -349,8 +383,7 @@ public class Behaviours {
                                                 .setAuth(auth).setExtraHeaders(extraHeaders).build();
                                         sockets[0] = IO.socket(socketURI, options);
                                         final Socket socket = sockets[0];
-                                        for (String EVENT: new String[]{Manager.EVENT_ERROR,
-                                                Manager.EVENT_CLOSE}) {
+                                        for (String EVENT: new String[]{Manager.EVENT_ERROR, Manager.EVENT_CLOSE}) {
 
                                             socket.io().on(EVENT, new Emitter.Listener() {
 
@@ -394,8 +427,7 @@ public class Behaviours {
                                                     if (arg == null) return;
                                                     if (arg.get("emitter_id") instanceof String) {
 
-                                                        String emitter_id =
-                                                                (String) arg.get("emitter_id");
+                                                        String emitter_id = (String) arg.get("emitter_id");
                                                         if (emitter_id.equals(socket.id())) return;
                                                     }
                                                     String message = null;
@@ -417,10 +449,11 @@ public class Behaviours {
 
                                                             if (_message_ != null) {
 
-                                                                BehaviourError err =
-                                                                        new BehaviourError(_message_);
-                                                                if (errorCallback != null)
-                                                                    errorCallback.call(err);
+                                                                BehaviourError err = new BehaviourError(_message_);
+                                                                if (errorCallback != null) {
+
+                                                                    errorCallback.call(err, behaviourName);
+                                                                }
                                                             }
                                                             if (__response__ != null) {
 
@@ -516,13 +549,11 @@ public class Behaviours {
                                                             parameter = (Map) param.get(paramKey);
                                                             parameter.put("for", __for__);
                                                         }
-                                                        for (Object otherPurpose :
-                                                                ((ArrayList<Object>) purposes)) {
+                                                        for (Object otherPurpose : ((ArrayList<Object>) purposes)) {
 
                                                             if (isEqual(otherPurpose, "constant") ||
                                                                     (otherPurpose instanceof HashMap &&
-                                                                    isEqual(((Map) otherPurpose).get("as"),
-                                                                            "constant"))) {
+                                                                    isEqual(((Map) otherPurpose).get("as"), "constant"))) {
 
                                                                 parameter = (Map) parameters.get(paramKey);
                                                                 parameter.put("value", paramValue);

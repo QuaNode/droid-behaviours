@@ -2,5 +2,5 @@ package com.quanode.behaviours;
 
 public interface BehaviourErrorCallback {
 
-    void call(BehaviourError error);
+    boolean call(BehaviourError error, String behaviour);
 }
